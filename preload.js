@@ -33,5 +33,18 @@ contextBridge.exposeInMainWorld('api', {
 
   // Session
   getSession: () => ipcRenderer.invoke('get-session'),
-  saveSession: (session) => ipcRenderer.invoke('save-session', session)
+  saveSession: (session) => ipcRenderer.invoke('save-session', session),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+
+  // Mini player
+  sendMiniPlayerState: (data) => ipcRenderer.send('mini-player-state', data),
+  onMiniPlayerCommand: (callback) => {
+    ipcRenderer.on('mini-player-command', (event, command) => callback(command));
+  },
+  onRequestPlayerState: (callback) => {
+    ipcRenderer.on('request-player-state', () => callback());
+  }
 });

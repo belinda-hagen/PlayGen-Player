@@ -20,7 +20,7 @@ function loadDB() {
   } catch (e) {
     console.error('Failed to load DB:', e);
   }
-  return { songs: [], playlists: [], session: { lastSongId: null, lastPlaylistId: null, volume: 0.8, shuffle: false, repeat: 'none' } };
+  return { songs: [], playlists: [], session: { lastSongId: null, lastPlaylistId: null, volume: 0.8, shuffle: false, repeat: 'none' }, settings: { miniPlayerOnMinimize: true } };
 }
 
 function saveDB(db) {
@@ -94,6 +94,7 @@ const depsStatus = resolveDependencies();
 
 // ── Window ─────────────────────────────────────────────────────────
 let mainWindow;
+let miniPlayerWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -114,6 +115,73 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
+
+  // Mini-player on minimize
+  mainWindow.on('minimize', () => {
+    const settings = db.settings || { miniPlayerOnMinimize: true };
+    console.log('[PlayGen] Window minimized, miniPlayerOnMinimize:', settings.miniPlayerOnMinimize);
+    if (settings.miniPlayerOnMinimize !== false) {
+      createMiniPlayer();
+    }
+  });
+
+  mainWindow.on('restore', () => {
+    destroyMiniPlayer();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    destroyMiniPlayer();
+  });
+}
+
+// ── Mini Player ───────────────────────────────────────────────────
+function createMiniPlayer() {
+  if (miniPlayerWindow) return;
+  console.log('[PlayGen] Creating mini player...');
+
+  const { screen } = require('electron');
+  const display = screen.getPrimaryDisplay();
+  const { width, height } = display.workAreaSize;
+
+  miniPlayerWindow = new BrowserWindow({
+    width: 320,
+    height: 80,
+    x: width - 340,
+    y: height - 100,
+    frame: false,
+    transparent: false,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    backgroundColor: '#0e0e18',
+    hasShadow: true,
+    roundedCorners: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    },
+    icon: path.join(__dirname, 'assets', 'icon.png')
+  });
+
+  miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'));
+  miniPlayerWindow.setMenuBarVisibility(false);
+
+  miniPlayerWindow.on('closed', () => {
+    miniPlayerWindow = null;
+  });
+
+  // Send current state after mini player loads
+  miniPlayerWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.send('request-player-state');
+  });
+}
+
+function destroyMiniPlayer() {
+  if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+    miniPlayerWindow.close();
+  }
+  miniPlayerWindow = null;
 }
 
 app.whenReady().then(() => {
@@ -381,4 +449,39 @@ ipcMain.handle('save-session', (event, session) => {
 // ── IPC: Open folder ─────────────────────────────────────────────
 ipcMain.handle('open-downloads-folder', () => {
   shell.openPath(downloadsPath);
+});
+
+// ── IPC: Settings ─────────────────────────────────────────────────
+ipcMain.handle('get-settings', () => {
+  return db.settings || { miniPlayerOnMinimize: true };
+});
+
+ipcMain.handle('save-settings', (event, settings) => {
+  db.settings = { ...(db.settings || {}), ...settings };
+  saveDB(db);
+  return { success: true };
+});
+
+// ── IPC: Mini Player Communication ────────────────────────────────
+// Renderer sends player state updates → forward to mini player
+ipcMain.on('mini-player-state', (event, data) => {
+  if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+    miniPlayerWindow.webContents.send('mini-player-update', data);
+  }
+});
+
+// Mini player sends commands → forward to main renderer
+ipcMain.on('mini-player-command', (event, command) => {
+  if (command === 'restore') {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.restore();
+      mainWindow.focus();
+    }
+    destroyMiniPlayer();
+  } else {
+    // Forward toggle-play, next, prev to the main renderer
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mini-player-command', command);
+    }
+  }
 });

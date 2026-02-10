@@ -101,7 +101,13 @@
     modalConfirm: $('#modal-confirm'),
 
     // Toast
-    toastContainer: $('#toast-container')
+    toastContainer: $('#toast-container'),
+
+    // Settings
+    btnSettings: $('#btn-settings'),
+    settingsOverlay: $('#settings-overlay'),
+    settingsClose: $('#settings-close'),
+    settingMiniPlayer: $('#setting-mini-player')
   };
 
   // ── Utility ─────────────────────────────────────────────────────
@@ -969,6 +975,7 @@
       dom.playerThumbImg.classList.remove('visible');
       dom.playerThumbnail.classList.remove('active');
     }
+    sendMiniPlayerState();
   }
 
   function updateShuffleUI() {
@@ -1106,6 +1113,7 @@
     dom.progressThumb.style.left = pct + '%';
     dom.timeCurrent.textContent = formatTime(audio.currentTime);
     dom.timeTotal.textContent = formatTime(audio.duration);
+    sendMiniPlayerState();
   });
 
   audio.addEventListener('ended', () => {
@@ -1115,11 +1123,13 @@
   audio.addEventListener('play', () => {
     state.isPlaying = true;
     updatePlayerUI();
+    sendMiniPlayerState();
   });
 
   audio.addEventListener('pause', () => {
     state.isPlaying = false;
     updatePlayerUI();
+    sendMiniPlayerState();
   });
 
   // ── Visualizer ──────────────────────────────────────────────────
@@ -1196,6 +1206,29 @@
     draw();
   }
 
+  // ── Settings ────────────────────────────────────────────────────
+  async function openSettings() {
+    const settings = await window.api.getSettings();
+    dom.settingMiniPlayer.checked = settings.miniPlayerOnMinimize ?? true;
+    dom.settingsOverlay.classList.add('visible');
+  }
+
+  function closeSettings() {
+    dom.settingsOverlay.classList.remove('visible');
+  }
+
+  // ── Mini Player State ───────────────────────────────────────────
+  function sendMiniPlayerState() {
+    if (!window.api.sendMiniPlayerState) return;
+    window.api.sendMiniPlayerState({
+      title: state.currentSong?.title || 'No song playing',
+      channel: state.currentSong?.channel || '',
+      thumbnail: state.currentSong?.thumbnail || '',
+      isPlaying: state.isPlaying,
+      progress: audio.duration ? (audio.currentTime / audio.duration) * 100 : 0
+    });
+  }
+
   // ── Session ─────────────────────────────────────────────────────
   function saveSession() {
     window.api.saveSession({
@@ -1241,6 +1274,30 @@
 
     // Open folder
     dom.btnOpenFolder.addEventListener('click', () => window.api.openDownloadsFolder());
+
+    // Settings
+    dom.btnSettings.addEventListener('click', openSettings);
+    dom.settingsClose.addEventListener('click', closeSettings);
+    dom.settingsOverlay.addEventListener('click', (e) => {
+      if (e.target === dom.settingsOverlay) closeSettings();
+    });
+    dom.settingMiniPlayer.addEventListener('change', () => {
+      window.api.saveSettings({ miniPlayerOnMinimize: dom.settingMiniPlayer.checked });
+    });
+
+    // Mini player command handling
+    window.api.onMiniPlayerCommand((command) => {
+      switch (command) {
+        case 'toggle-play': togglePlay(); break;
+        case 'next': playNext(); break;
+        case 'prev': playPrev(); break;
+      }
+    });
+
+    // When mini player requests current state
+    window.api.onRequestPlayerState(() => {
+      sendMiniPlayerState();
+    });
 
     // Player controls
     dom.btnPlay.addEventListener('click', togglePlay);

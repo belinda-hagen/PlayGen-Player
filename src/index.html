@@ -102,6 +102,13 @@
             </svg>
             <span>Open Downloads</span>
           </button>
+          <button class="btn-open-folder" id="btn-settings" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Settings</span>
+          </button>
         </div>
       </aside>
 
@@ -267,6 +274,29 @@
       <div class="modal-actions">
         <button class="modal-btn modal-btn-cancel" id="modal-cancel">CANCEL</button>
         <button class="modal-btn modal-btn-confirm" id="modal-confirm">CREATE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div class="settings-overlay" id="settings-overlay">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h3>Settings</h3>
+        <button class="settings-close" id="settings-close">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <h4 class="settings-group-title">Mini Player</h4>
+          <label class="settings-toggle">
+            <span class="settings-label">Show mini player on minimize</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="setting-mini-player" checked>
+              <span class="toggle-slider"></span>
+            </div>
+          </label>
+          <p class="settings-hint">When enabled, a small floating player appears when you minimize the main window.</p>
+        </div>
       </div>
     </div>
   </div>
