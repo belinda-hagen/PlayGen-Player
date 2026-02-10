@@ -1173,9 +1173,9 @@
         const barHeight = value * height * 0.8;
 
         const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-        gradient.addColorStop(0, 'rgba(192, 109, 255, 0.8)');
-        gradient.addColorStop(0.5, 'rgba(255, 107, 170, 0.6)');
-        gradient.addColorStop(1, 'rgba(255, 140, 66, 0.5)');
+        gradient.addColorStop(0, 'rgba(200, 138, 255, 0.85)');
+        gradient.addColorStop(0.5, 'rgba(255, 110, 176, 0.65)');
+        gradient.addColorStop(1, 'rgba(255, 160, 80, 0.55)');
 
         ctx.fillStyle = gradient;
         ctx.fillRect(
@@ -1186,7 +1186,7 @@
         );
 
         // Glow effect
-        ctx.shadowColor = 'rgba(192, 109, 255, 0.3)';
+        ctx.shadowColor = 'rgba(200, 138, 255, 0.35)';
         ctx.shadowBlur = 4;
       }
 
