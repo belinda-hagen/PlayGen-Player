@@ -896,6 +896,11 @@ html, body {
   background: var(--pink);
   border-radius: 2px;
   animation: eq-bars 0.7s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+body.audio-playing .playing-bar {
+  animation-play-state: running;
 }
 
 .playing-bar:nth-child(1) { height: 55%; animation-delay: 0s; }

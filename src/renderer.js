@@ -276,6 +276,13 @@
       const song = state.songs.find(s => s.id === session.lastSongId);
       if (song) {
         state.currentSong = song;
+        buildQueue();
+        state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === song.id);
+        const filePath = await window.api.getSongPath(song.id);
+        if (filePath) {
+          audio.src = `file://${filePath}`;
+          audio.pause(); // Loaded but not playing
+        }
         updatePlayerSongInfo();
       }
     }
@@ -1124,16 +1131,20 @@
   audio.addEventListener('play', () => {
     state.isPlaying = true;
     updatePlayerUI();
+    renderSongList();
     dom.playerThumbnail.classList.remove('paused');
     dom.btnPlay.classList.add('is-playing');
+    document.body.classList.add('audio-playing');
     sendMiniPlayerState();
   });
 
   audio.addEventListener('pause', () => {
     state.isPlaying = false;
     updatePlayerUI();
+    renderSongList();
     dom.playerThumbnail.classList.add('paused');
     dom.btnPlay.classList.remove('is-playing');
+    document.body.classList.remove('audio-playing');
     sendMiniPlayerState();
   });
 
