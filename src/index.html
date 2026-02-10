@@ -107,14 +107,40 @@
 
       <!-- Main Area -->
       <main class="main-area" id="main-area">
-        <div class="view-header" id="view-header">
-          <div class="view-header-left">
-            <h2 class="view-title" id="view-title">All Downloads</h2>
-            <span class="song-count" id="song-count">0 songs</span>
+        <!-- Hero Banner -->
+        <div class="view-hero" id="view-hero">
+          <div class="view-hero-bg" id="view-hero-bg"></div>
+          <div class="view-hero-overlay"></div>
+          <div class="view-hero-content">
+            <div class="view-hero-thumb" id="view-hero-thumb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+                <path d="M9 18V5l12-2v13"/>
+                <circle cx="6" cy="18" r="3"/>
+                <circle cx="18" cy="16" r="3"/>
+              </svg>
+            </div>
+            <div class="view-hero-info">
+              <span class="view-hero-label" id="view-hero-label">PLAYLIST</span>
+              <h2 class="view-title" id="view-title">All Downloads</h2>
+              <span class="song-count" id="song-count">0 songs</span>
+            </div>
           </div>
-          <div class="view-header-right" id="view-header-right">
-            <!-- Play All button for playlists -->
+          <div class="view-hero-actions" id="view-header-right">
+            <!-- Play All button rendered here -->
           </div>
+        </div>
+
+        <!-- Column Header -->
+        <div class="song-list-header" id="song-list-header">
+          <span class="col-index">#</span>
+          <span class="col-title">TITLE</span>
+          <span class="col-duration">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </span>
+          <span class="col-actions"></span>
         </div>
 
         <!-- Song List -->

@@ -382,6 +382,29 @@
     dom.viewTitle.textContent = viewTitle;
     dom.songCount.textContent = `${songs.length} song${songs.length !== 1 ? 's' : ''}`;
 
+    // Update hero banner
+    const heroBg = document.getElementById('view-hero-bg');
+    const heroThumb = document.getElementById('view-hero-thumb');
+    const heroLabel = document.getElementById('view-hero-label');
+
+    if (heroLabel) {
+      heroLabel.textContent = isPlaylistView ? 'PLAYLIST' : 'LIBRARY';
+    }
+
+    // Use currently playing song if it's in this view, otherwise first song
+    const playingSongInView = state.currentSong && songs.find(s => s.id === state.currentSong.id);
+    const heroSong = playingSongInView || (songs.length > 0 ? songs[0] : null);
+    if (heroBg) {
+      heroBg.style.backgroundImage = heroSong ? `url("${heroSong.thumbnail}")` : '';
+    }
+    if (heroThumb) {
+      if (heroSong) {
+        heroThumb.innerHTML = `<img src="${escapeHtml(heroSong.thumbnail)}" alt="">`;
+      } else {
+        heroThumb.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+      }
+    }
+
     // Play All button for playlists
     dom.viewHeaderRight.innerHTML = '';
     if (songs.length > 0) {
@@ -403,14 +426,17 @@
       dom.viewHeaderRight.appendChild(btn);
     }
 
-    // Show/hide empty state
+    // Show/hide empty state & column header
+    const colHeader = document.getElementById('song-list-header');
     dom.songList.innerHTML = '';
     if (songs.length === 0 && !state.searchQuery) {
       dom.emptyState.classList.add('visible');
       dom.songList.style.display = 'none';
+      if (colHeader) colHeader.style.display = 'none';
     } else {
       dom.emptyState.classList.remove('visible');
       dom.songList.style.display = '';
+      if (colHeader) colHeader.style.display = '';
 
       songs.forEach((song, index) => {
         const item = createSongItem(song, index, isPlaylistView);
@@ -428,6 +454,9 @@
     item.innerHTML = `
       <div class="song-index">
         <span class="song-index-number">${index + 1}</span>
+        <span class="song-hover-play">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><polygon points="5,3 19,12 5,21"/></svg>
+        </span>
         <div class="song-playing-indicator">
           <div class="playing-bar"></div>
           <div class="playing-bar"></div>
@@ -464,13 +493,10 @@
       </div>
     `;
 
-    // Double-click to play
-    item.addEventListener('dblclick', () => playSong(song));
-
-    // Single click - select
+    // Click to play
     item.addEventListener('click', (e) => {
       if (e.target.closest('.song-action-btn')) return;
-      // Just highlight for now
+      playSong(song);
     });
 
     // Context menu
@@ -834,7 +860,15 @@
   }
 
   function togglePlay() {
-    if (!state.currentSong) return;
+    // If no song loaded, start playing from the current view
+    if (!state.currentSong) {
+      if (state.currentView === 'all') {
+        if (state.songs.length > 0) playAllSongs();
+      } else {
+        playPlaylist(state.currentView);
+      }
+      return;
+    }
     if (state.isPlaying) {
       audio.pause();
       state.isPlaying = false;
