@@ -1,17 +1,51 @@
 {
   "name": "playgen",
   "version": "1.0.0",
-  "description": "Cyberpunk-themed YouTube music downloader and playlist manager",
+  "description": "YouTube music downloader & playlist manager",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "build": "npx electron-packager . PlayGen --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/icon.ico --ignore=\"dist|.git|.gitignore\" --asar"
   },
-  "keywords": ["electron", "youtube", "music", "playlist", "cyberpunk"],
+  "keywords": [
+    "electron",
+    "youtube",
+    "music",
+    "playlist"
+  ],
   "author": "PlayGen",
   "license": "MIT",
-  "devDependencies": {
-    "electron": "^28.0.0"
+  "build": {
+    "appId": "com.playgen.app",
+    "productName": "PlayGen",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    }
   },
-  "dependencies": {}
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-packager": "^17.1.2"
+  }
 }
