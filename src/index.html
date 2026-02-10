@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlayGen</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Scanline Overlay -->
+  <div class="scanlines"></div>
+
+  <!-- Custom Title Bar -->
+  <header class="titlebar" id="titlebar">
+    <div class="titlebar-logo">
+      <span class="logo-icon">▶</span>
+      <span class="logo-text">PLAY<span class="logo-accent">GEN</span></span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="btn-minimize" title="Minimize">─</button>
+      <button class="titlebar-btn" id="btn-maximize" title="Maximize">□</button>
+      <button class="titlebar-btn btn-close" id="btn-close" title="Close">✕</button>
+    </div>
+  </header>
+
+  <!-- App Container -->
+  <div class="app">
+    <!-- Top Bar: Download + Search -->
+    <div class="topbar">
+      <div class="download-section">
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <input type="text" id="url-input" placeholder="Paste YouTube URL here..." spellcheck="false" autocomplete="off">
+        </div>
+        <button class="btn-download" id="btn-download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>DOWNLOAD</span>
+        </button>
+      </div>
+      <div class="search-section">
+        <div class="input-wrapper search-wrapper">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search library..." spellcheck="false">
+        </div>
+      </div>
+    </div>
+
+    <!-- Download Progress Bar -->
+    <div class="download-progress-container" id="download-progress-container">
+      <div class="download-progress-info">
+        <span class="download-progress-title" id="download-progress-title">Downloading...</span>
+        <span class="download-progress-percent" id="download-progress-percent">0%</span>
+      </div>
+      <div class="download-progress-track">
+        <div class="download-progress-fill" id="download-progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-section">
+          <h3 class="sidebar-heading">LIBRARY</h3>
+          <div class="nav-item active" data-view="all" id="nav-all">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            <span>All Downloads</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-heading-row">
+            <h3 class="sidebar-heading">PLAYLISTS</h3>
+            <button class="btn-new-playlist" id="btn-new-playlist" title="Create new playlist">+</button>
+          </div>
+          <div class="playlist-list" id="playlist-list">
+            <!-- Playlists rendered here -->
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="btn-open-folder" id="btn-open-folder" title="Open downloads folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Open Downloads</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Area -->
+      <main class="main-area" id="main-area">
+        <div class="view-header" id="view-header">
+          <div class="view-header-left">
+            <h2 class="view-title" id="view-title">All Downloads</h2>
+            <span class="song-count" id="song-count">0 songs</span>
+          </div>
+          <div class="view-header-right" id="view-header-right">
+            <!-- Play All button for playlists -->
+          </div>
+        </div>
+
+        <!-- Song List -->
+        <div class="song-list" id="song-list">
+          <!-- Songs rendered here -->
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <h3 class="empty-title">No songs yet</h3>
+          <p class="empty-text">Paste a YouTube URL above to download your first track</p>
+        </div>
+
+        <!-- Dependencies Warning -->
+        <div class="deps-warning" id="deps-warning" style="display:none;">
+          <div class="deps-warning-icon">⚠</div>
+          <h3>Missing Dependencies</h3>
+          <p id="deps-warning-text"></p>
+          <p class="deps-help">Install them and restart PlayGen to get started.</p>
+        </div>
+      </main>
+    </div>
+
+    <!-- Player Bar -->
+    <footer class="player-bar" id="player-bar">
+      <div class="player-left">
+        <div class="player-thumbnail" id="player-thumbnail">
+          <img id="player-thumb-img" src="" alt="">
+          <canvas id="visualizer-canvas" width="60" height="60"></canvas>
+          <div class="player-no-song">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+        </div>
+        <div class="player-info">
+          <div class="player-title" id="player-title">No song playing</div>
+          <div class="player-channel" id="player-channel"></div>
+        </div>
+      </div>
+
+      <div class="player-center">
+        <div class="player-controls">
+          <button class="player-btn btn-shuffle" id="btn-shuffle" title="Shuffle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <polyline points="16 3 21 3 21 8"/>
+              <line x1="4" y1="20" x2="21" y2="3"/>
+              <polyline points="21 16 21 21 16 21"/>
+              <line x1="15" y1="15" x2="21" y2="21"/>
+              <line x1="4" y1="4" x2="9" y2="9"/>
+            </svg>
+          </button>
+          <button class="player-btn btn-prev" id="btn-prev" title="Previous">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+              <polygon points="19,20 9,12 19,4"/>
+              <rect x="5" y="4" width="2" height="16"/>
+            </svg>
+          </button>
+          <button class="player-btn btn-play" id="btn-play" title="Play">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" id="play-icon">
+              <polygon points="5,3 19,12 5,21"/>
+            </svg>
+          </button>
+          <button class="player-btn btn-next" id="btn-next" title="Next">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+              <polygon points="5,4 15,12 5,20"/>
+              <rect x="17" y="4" width="2" height="16"/>
+            </svg>
+          </button>
+          <button class="player-btn btn-repeat" id="btn-repeat" title="Repeat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <polyline points="17 1 21 5 17 9"/>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+              <polyline points="7 23 3 19 7 15"/>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+            </svg>
+          </button>
+        </div>
+        <div class="player-progress">
+          <span class="time-current" id="time-current">0:00</span>
+          <div class="progress-track" id="progress-track">
+            <div class="progress-fill" id="progress-fill"></div>
+            <div class="progress-thumb" id="progress-thumb"></div>
+          </div>
+          <span class="time-total" id="time-total">0:00</span>
+        </div>
+      </div>
+
+      <div class="player-right">
+        <button class="player-btn btn-volume-icon" id="btn-volume-icon" title="Mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" id="volume-icon">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        </button>
+        <div class="volume-track" id="volume-track">
+          <div class="volume-fill" id="volume-fill"></div>
+          <div class="volume-thumb" id="volume-thumb"></div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Context Menu -->
+  <div class="context-menu" id="context-menu">
+    <div class="context-menu-items" id="context-menu-items"></div>
+  </div>
+
+  <!-- Modal (for playlist creation/rename) -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <h3 class="modal-title" id="modal-title">New Playlist</h3>
+      <input type="text" class="modal-input" id="modal-input" placeholder="Playlist name..." maxlength="50">
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="modal-cancel">CANCEL</button>
+        <button class="modal-btn modal-btn-confirm" id="modal-confirm">CREATE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
