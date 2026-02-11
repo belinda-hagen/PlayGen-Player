@@ -48,5 +48,13 @@ contextBridge.exposeInMainWorld('api', {
   },
   onRequestPlayerState: (callback) => {
     ipcRenderer.on('request-player-state', () => callback());
+  },
+
+  // Keyboard shortcuts from main process
+  onShortcutPrev: (callback) => {
+    ipcRenderer.on('shortcut-prev', () => callback());
+  },
+  onShortcutNext: (callback) => {
+    ipcRenderer.on('shortcut-next', () => callback());
   }
 });

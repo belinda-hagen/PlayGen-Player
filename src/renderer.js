@@ -10,6 +10,7 @@
     songs: [],
     playlists: [],
     currentView: 'all',         // 'all' or playlist id
+    playingFromView: null,       // view where current song playback started
     currentSong: null,           // song object
     currentQueue: [],            // array of song objects (current play queue)
     currentQueueIndex: -1,
@@ -25,6 +26,7 @@
 
   // ── Play transition guards ──────────────────────────────────────
   let _playId = 0;
+  let _currentPlayId = 0;  // The playId that event handlers should respond to
   let _isTransitioning = false;
 
   // ── Audio ───────────────────────────────────────────────────────
@@ -502,7 +504,9 @@
 
   function createSongItem(song, index, isPlaylistView) {
     const item = document.createElement('div');
-    item.className = `song-item ${state.currentSong?.id === song.id ? 'playing' : ''}`;
+    // Only show 'playing' class if this is the view where playback started
+    const isPlayingHere = state.currentSong?.id === song.id && state.playingFromView === state.currentView;
+    item.className = `song-item ${isPlayingHere ? 'playing' : ''}`;
     item.dataset.songId = song.id;
     item.draggable = true;
 
@@ -949,6 +953,7 @@
     if (state.currentSong?.id === song.id) {
       audio.pause();
       state.currentSong = null;
+      state.playingFromView = null;
       state.isPlaying = false;
       updatePlayerUI();
     }
@@ -963,6 +968,7 @@
   // ── Player ──────────────────────────────────────────────────────
   function playSong(song) {
     const playId = ++_playId;
+    _currentPlayId = playId;  // Event handlers will check this
     _isTransitioning = true;
 
     // Stop current audio immediately for responsive feel
@@ -971,6 +977,7 @@
     // Update state immediately — fully synchronous, no async gaps
     state.currentSong = song;
     state.isPlaying = true;
+    state.playingFromView = state.currentView;  // Track which view started playback
 
     // Build queue from current view
     buildQueue();
@@ -993,6 +1000,7 @@
       _isTransitioning = false;
       showToast('Audio file not found', 'error');
       state.currentSong = null;
+      state.playingFromView = null;
       state.isPlaying = false;
       state.currentQueueIndex = -1;
       updatePlayerUI();
@@ -1118,13 +1126,8 @@
 
     let nextIndex = state.currentQueueIndex + 1;
     if (nextIndex >= state.currentQueue.length) {
-      if (state.repeat === 'all') {
-        nextIndex = 0;
-      } else {
-        state.isPlaying = false;
-        updatePlayerUI();
-        return;
-      }
+      // Wrap around to the first song
+      nextIndex = 0;
     }
 
     const nextSong = state.currentQueue[nextIndex];
@@ -1344,6 +1347,8 @@
   });
 
   audio.addEventListener('play', () => {
+    // Ignore stale play events from previous song loads
+    if (_playId !== _currentPlayId) return;
     _isTransitioning = false;
     state.isPlaying = true;
     updatePlayerUI();
@@ -1539,6 +1544,14 @@
       sendMiniPlayerState();
     });
 
+    // Keyboard shortcuts from main process (Ctrl+Arrow)
+    window.api.onShortcutPrev(() => {
+      playPrev();
+    });
+    window.api.onShortcutNext(() => {
+      playNext();
+    });
+
     // Player controls
     dom.btnPlay.addEventListener('click', togglePlay);
     dom.btnNext.addEventListener('click', playNext);
@@ -1575,12 +1588,20 @@
           togglePlay();
           break;
         case 'ArrowRight':
-          if (e.ctrlKey) playNext();
-          else if (audio.duration) audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+          if (e.ctrlKey) {
+            e.preventDefault();
+            playNext();
+          } else if (audio.duration) {
+            audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+          }
           break;
         case 'ArrowLeft':
-          if (e.ctrlKey) playPrev();
-          else if (audio.duration) audio.currentTime = Math.max(0, audio.currentTime - 5);
+          if (e.ctrlKey) {
+            e.preventDefault();
+            playPrev();
+          } else if (audio.duration) {
+            audio.currentTime = Math.max(0, audio.currentTime - 5);
+          }
           break;
         case 'ArrowUp':
           e.preventDefault();

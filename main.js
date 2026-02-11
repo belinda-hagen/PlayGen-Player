@@ -116,6 +116,19 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
 
+  // Handle Ctrl+Arrow shortcuts at main process level (before Chromium's word navigation)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && !input.alt && !input.meta && input.type === 'keyDown') {
+      if (input.key === 'ArrowLeft') {
+        event.preventDefault();
+        mainWindow.webContents.send('shortcut-prev');
+      } else if (input.key === 'ArrowRight') {
+        event.preventDefault();
+        mainWindow.webContents.send('shortcut-next');
+      }
+    }
+  });
+
   // Mini-player on minimize
   mainWindow.on('minimize', () => {
     const settings = db.settings || { miniPlayerOnMinimize: true };
