@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>YouTube music downloader & playlist manager</strong><br />
-  <sub>🎵 Download · Organize · Play — all in one app</sub>
+  <sub>Download · Organize · Play — all in one app</sub>
 </p>
 
 <p align="center">
@@ -21,21 +21,21 @@
 ---
 
 <details open>
-<summary><h2>✨ Features</h2></summary>
+<summary><h2>Features</h2></summary>
 
-| | Feature | Description |
-|---|---|---|
-| 🎵 | **Download from YouTube** | Paste a link, get high-quality MP3 (320 kbps) |
-| 📋 | **Playlist system** | Create, rename, reorder & delete playlists with drag-and-drop |
-| ▶️ | **Full music player** | Play/pause, skip, shuffle, repeat, seek & volume |
-| 🎨 | **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
-| 🖥️ | **Mini player** | Compact always-on-top player when minimized |
-| 🔍 | **Search** | Instantly filter songs across your library |
-| 💾 | **Session restore** | Picks up right where you left off |
+| Feature | Description |
+|---|---|
+| **Download from YouTube** | Paste a link, get high-quality MP3 (320 kbps) |
+| **Playlist system** | Create, rename, reorder & delete playlists with drag-and-drop |
+| **Full music player** | Play/pause, skip, shuffle, repeat, seek & volume |
+| **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
+| **Mini player** | Compact always-on-top player when minimized |
+| **Search** | Instantly filter songs across your library |
+| **Session restore** | Picks up right where you left off |
 
 </details>
 
-## 📦 Prerequisites
+## Prerequisites
 
 | Tool | Install |
 |------|---------|
@@ -43,7 +43,7 @@
 | **yt-dlp** | `winget install yt-dlp` or [GitHub releases](https://github.com/yt-dlp/yt-dlp/releases) |
 | **ffmpeg** | `winget install ffmpeg` or [ffmpeg.org](https://ffmpeg.org/download.html) |
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 git clone https://github.com/belinda-hagen/PlayGen.git
@@ -52,7 +52,7 @@ npm install
 npm start
 ```
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -64,10 +64,10 @@ npm start
 | `R` | Cycle repeat |
 | `Ctrl+F` | Focus search |
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This tool is intended for downloading content you have the right to download. Users are responsible for complying with applicable laws and YouTube's Terms of Service. The developers of PlayGen do not condone or encourage downloading copyrighted material without permission.
 
-## 📄 License
+## License
 
 [MIT](LICENSE)
