@@ -2,7 +2,7 @@
   <img src="assets/icon.png" alt="PlayGen Logo" width="140" />
 </p>
 
-<h1 align="center">PlayGen</h1>
+<h1 align="center">PlayGen Player</h1>
 
 <p align="center">
   <strong>YouTube music downloader & playlist manager</strong><br />
