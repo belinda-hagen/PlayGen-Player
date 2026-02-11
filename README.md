@@ -1,34 +1,41 @@
 <p align="center">
-  <img src="assets/icon.png" alt="PlayGen Logo" width="120" />
+  <img src="assets/icon.png" alt="PlayGen Logo" width="140" />
 </p>
 
 <h1 align="center">PlayGen</h1>
 
 <p align="center">
-  <strong>YouTube music downloader & playlist manager</strong>
+  <strong>YouTube music downloader & playlist manager</strong><br />
+  <sub>🎵 Download · Organize · Play — all in one app</sub>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/downloads/belinda-hagen/PlayGen/total?style=for-the-badge&color=ff2d78&label=Downloads" alt="Downloads" />
-  <img src="https://img.shields.io/badge/Electron-28-191970?style=for-the-badge&logo=electron&logoColor=white" alt="Electron" />
-  <img src="https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Platform" />
-  <img src="https://img.shields.io/badge/License-MIT-ff2d78?style=for-the-badge" alt="License" />
+  <a href="https://github.com/belinda-hagen/PlayGen/releases/latest"><img src="https://img.shields.io/github/v/tag/belinda-hagen/PlayGen?label=Version&style=flat-square&color=ff2d78" alt="Version" /></a>
+  <a href="https://github.com/belinda-hagen/PlayGen/releases"><img src="https://img.shields.io/github/downloads/belinda-hagen/PlayGen/total?style=flat-square&color=ff2d78&label=Downloads" alt="Downloads" /></a>
+  <img src="https://img.shields.io/badge/Electron-28-191970?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white" alt="Platform" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-ff2d78?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/belinda-hagen/PlayGen/stargazers"><img src="https://img.shields.io/github/stars/belinda-hagen/PlayGen?style=flat-square&color=ffcc00&label=Stars" alt="Stars" /></a>
 </p>
 
 ---
 
-## Features
+<details open>
+<summary><h2>✨ Features</h2></summary>
 
-- **Download from YouTube** — Paste a link, get high-quality MP3 (320 kbps)
-- **Playlist system** — Create, rename, reorder & delete playlists with drag-and-drop
-- **Full music player** — Play/pause, skip, shuffle, repeat, seek & volume
-- **Audio visualizer** — Real-time equalizer bars on the album thumbnail
-- **Mini player** — Compact always-on-top player when minimized
-- **Search** — Instantly filter songs across your library
-- **Session restore** — Picks up right where you left off
+| | Feature | Description |
+|---|---|---|
+| 🎵 | **Download from YouTube** | Paste a link, get high-quality MP3 (320 kbps) |
+| 📋 | **Playlist system** | Create, rename, reorder & delete playlists with drag-and-drop |
+| ▶️ | **Full music player** | Play/pause, skip, shuffle, repeat, seek & volume |
+| 🎨 | **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
+| 🖥️ | **Mini player** | Compact always-on-top player when minimized |
+| 🔍 | **Search** | Instantly filter songs across your library |
+| 💾 | **Session restore** | Picks up right where you left off |
 
-## Prerequisites
+</details>
+
+## 📦 Prerequisites
 
 | Tool | Install |
 |------|---------|
@@ -36,7 +43,7 @@
 | **yt-dlp** | `winget install yt-dlp` or [GitHub releases](https://github.com/yt-dlp/yt-dlp/releases) |
 | **ffmpeg** | `winget install ffmpeg` or [ffmpeg.org](https://ffmpeg.org/download.html) |
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/belinda-hagen/PlayGen.git
@@ -45,7 +52,7 @@ npm install
 npm start
 ```
 
-## Keyboard Shortcuts
+## ⌨️ Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -57,10 +64,10 @@ npm start
 | `R` | Cycle repeat |
 | `Ctrl+F` | Focus search |
 
-## Disclaimer
+## ⚠️ Disclaimer
 
-> This tool is intended for downloading content you have the right to download. Users are responsible for complying with applicable laws and YouTube's Terms of Service. The developers of PlayGen do not condone or encourage downloading copyrighted material without permission.
+This tool is intended for downloading content you have the right to download. Users are responsible for complying with applicable laws and YouTube's Terms of Service. The developers of PlayGen do not condone or encourage downloading copyrighted material without permission.
 
-## License
+## 📄 License
 
-MIT
+[MIT](LICENSE)
