@@ -18,6 +18,10 @@
   <a href="https://github.com/belinda-hagen/PlayGen/stargazers"><img src="https://img.shields.io/github/stars/belinda-hagen/PlayGen?style=flat-square&color=ffcc00&label=Stars" alt="Stars" /></a>
 </p>
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="PlayGen Screenshot" width="800" />
+</p>
+
 ---
 
 <h2>Features</h2>
