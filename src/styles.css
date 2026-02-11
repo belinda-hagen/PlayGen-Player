@@ -630,6 +630,87 @@ html, body {
   background: var(--bg-hover);
 }
 
+/* Toggle sidebar button */
+.btn-toggle-sidebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--r);
+  transition: all var(--t-base);
+  width: 100%;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-1);
+  padding-top: 10px;
+}
+
+.btn-toggle-sidebar span {
+  background: var(--grad-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.btn-toggle-sidebar svg {
+  color: var(--pink);
+  transition: transform var(--t-base);
+}
+
+.btn-toggle-sidebar:hover {
+  background: var(--bg-hover);
+}
+
+.btn-toggle-sidebar:hover svg {
+  color: var(--purple);
+}
+
+/* Collapsed sidebar state */
+.sidebar.collapsed {
+  width: 60px;
+}
+
+.sidebar.collapsed .sidebar-heading,
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .btn-open-folder span,
+.sidebar.collapsed .btn-toggle-sidebar span,
+.sidebar.collapsed .playlist-count,
+.sidebar.collapsed .btn-new-playlist {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-section {
+  padding: 16px 10px 8px;
+}
+
+.sidebar.collapsed .sidebar-heading-row {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar.collapsed .btn-open-folder,
+.sidebar.collapsed .btn-toggle-sidebar {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar.collapsed .btn-toggle-sidebar svg {
+  transform: rotate(180deg);
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 10px 8px;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    MAIN AREA
    ══════════════════════════════════════════════════════════════════════ */

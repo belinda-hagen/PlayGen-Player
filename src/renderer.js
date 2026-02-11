@@ -116,6 +116,10 @@
     settingsClose: $('#settings-close'),
     settingMiniPlayer: $('#setting-mini-player'),
 
+    // Sidebar
+    sidebar: $('#sidebar'),
+    btnToggleSidebar: $('#btn-toggle-sidebar'),
+
     // Loading screen
     loadingScreen: $('#loading-screen')
   };
@@ -1542,6 +1546,19 @@
     dom.settingMiniPlayer.addEventListener('change', () => {
       window.api.saveSettings({ miniPlayerOnMinimize: dom.settingMiniPlayer.checked });
     });
+
+    // Sidebar toggle
+    dom.btnToggleSidebar.addEventListener('click', () => {
+      dom.sidebar.classList.toggle('collapsed');
+      // Save preference
+      const isCollapsed = dom.sidebar.classList.contains('collapsed');
+      localStorage.setItem('sidebarCollapsed', isCollapsed);
+    });
+
+    // Restore sidebar state
+    if (localStorage.getItem('sidebarCollapsed') === 'true') {
+      dom.sidebar.classList.add('collapsed');
+    }
 
     // Mini player command handling
     window.api.onMiniPlayerCommand((command) => {
