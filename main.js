@@ -231,7 +231,7 @@ ipcMain.handle('download-video', async (event, url) => {
 
   return new Promise((resolve) => {
     // Step 1: Get metadata
-    const infoArgs = ['--dump-json', '--no-download', url];
+    const infoArgs = ['--dump-json', '--no-download', '--no-playlist', url];
     console.log('[PlayGen] Getting info:', ytdlpPath, infoArgs.join(' '));
     const infoProc = spawn(ytdlpPath, infoArgs, { windowsHide: true });
     let infoData = '';
@@ -350,6 +350,77 @@ ipcMain.handle('download-video', async (event, url) => {
   });
 });
 
+// ── IPC: Download YouTube Playlist ────────────────────────────────
+ipcMain.handle('download-playlist-url', async (event, url) => {
+  // Validate playlist URL
+  const plRegex = /^(https?:\/\/)?(www\.|music\.)?(youtube\.com\/(playlist\?list=|watch\?.*list=))/;
+  if (!plRegex.test(url)) {
+    return { success: false, error: 'Invalid YouTube playlist URL' };
+  }
+
+  // Extract playlist ID
+  try {
+    const u = new URL(url.startsWith('http') ? url : 'https://' + url);
+    const listId = u.searchParams.get('list');
+    if (!listId) return { success: false, error: 'No playlist ID found in URL' };
+    url = `https://www.youtube.com/playlist?list=${listId}`;
+  } catch {
+    return { success: false, error: 'Invalid URL format' };
+  }
+
+  console.log('[PlayGen] Playlist download requested:', url);
+
+  return new Promise((resolve) => {
+    // Step 1: Get playlist entries via --flat-playlist
+    const infoArgs = ['--flat-playlist', '--dump-json', url];
+    const infoProc = spawn(ytdlpPath, infoArgs, { windowsHide: true });
+    let infoData = '';
+    let infoError = '';
+
+    infoProc.stdout.on('data', (data) => { infoData += data.toString(); });
+    infoProc.stderr.on('data', (data) => { infoError += data.toString(); });
+
+    infoProc.on('error', (err) => {
+      return resolve({ success: false, error: `Failed to run yt-dlp: ${err.message}` });
+    });
+
+    infoProc.on('close', (code) => {
+      if (code !== 0) {
+        return resolve({ success: false, error: infoError || 'Failed to get playlist info' });
+      }
+
+      // Each line is a JSON object for one video
+      const entries = infoData.trim().split('\n').map(line => {
+        try { return JSON.parse(line); } catch { return null; }
+      }).filter(Boolean);
+
+      if (entries.length === 0) {
+        return resolve({ success: false, error: 'Playlist is empty or could not be parsed' });
+      }
+
+      const videoUrls = entries.map(e => {
+        // Prefer constructing from id for consistency
+        if (e.id) return `https://www.youtube.com/watch?v=${e.id}`;
+        if (e.url && e.url.startsWith('http')) return e.url;
+        if (e.url) return `https://www.youtube.com/watch?v=${e.url}`;
+        return null;
+      }).filter(Boolean);
+
+      const playlistTitle = entries[0]?.playlist_title || entries[0]?.playlist || 'YouTube Playlist';
+
+      console.log(`[PlayGen] Found ${videoUrls.length} videos in playlist "${playlistTitle}"`);
+
+      // Send playlist info back so renderer can download one by one
+      resolve({
+        success: true,
+        playlistTitle,
+        videoUrls,
+        totalCount: videoUrls.length
+      });
+    });
+  });
+});
+
 // ── IPC: Songs ────────────────────────────────────────────────────
 ipcMain.handle('get-songs', () => {
   // Verify files still exist
@@ -451,6 +522,49 @@ ipcMain.handle('open-downloads-folder', () => {
   shell.openPath(downloadsPath);
 });
 
+// ── IPC: Export playlist to folder ────────────────────────────────
+ipcMain.handle('export-playlist', async (event, { playlistId }) => {
+  const playlist = db.playlists.find(p => p.id === playlistId);
+  if (!playlist) return { success: false, error: 'Playlist not found' };
+  if (!playlist.songs || playlist.songs.length === 0) return { success: false, error: 'Playlist is empty' };
+
+  // Let user pick a parent folder
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: `Export "${playlist.name}"`,
+    properties: ['openDirectory'],
+    buttonLabel: 'Export Here'
+  });
+
+  if (result.canceled || !result.filePaths[0]) return { success: false, error: 'Cancelled' };
+
+  const exportDir = path.join(result.filePaths[0], playlist.name.replace(/[<>:"/\\|?*]/g, '_'));
+  if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+
+  let copied = 0;
+  let failed = 0;
+
+  for (const songId of playlist.songs) {
+    const song = db.songs.find(s => s.id === songId);
+    if (!song || !fs.existsSync(song.filePath)) { failed++; continue; }
+
+    const safeName = song.title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
+    const destPath = path.join(exportDir, `${safeName}.mp3`);
+
+    try {
+      fs.copyFileSync(song.filePath, destPath);
+      copied++;
+    } catch (err) {
+      console.error(`[PlayGen] Failed to copy ${song.title}:`, err.message);
+      failed++;
+    }
+  }
+
+  // Open the exported folder
+  shell.openPath(exportDir);
+
+  return { success: true, copied, failed, exportDir };
+});
+
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
   return db.settings || { miniPlayerOnMinimize: true };
@@ -477,6 +591,8 @@ ipcMain.on('mini-player-command', (event, command) => {
       mainWindow.restore();
       mainWindow.focus();
     }
+    destroyMiniPlayer();
+  } else if (command === 'close') {
     destroyMiniPlayer();
   } else {
     // Forward toggle-play, next, prev to the main renderer

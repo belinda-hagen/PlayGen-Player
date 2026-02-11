@@ -116,6 +116,7 @@
     }
 
     .mini-btn.close-btn {
+      -webkit-app-region: no-drag;
       position: absolute;
       top: 4px;
       right: 4px;
@@ -225,7 +226,7 @@
       ipcRenderer.send('mini-player-command', 'next');
     });
     document.getElementById('btn-close').addEventListener('click', () => {
-      ipcRenderer.send('mini-player-command', 'restore');
+      ipcRenderer.send('mini-player-command', 'close');
     });
 
     // Double-click to restore main window

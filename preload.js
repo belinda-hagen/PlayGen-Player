@@ -11,11 +11,13 @@ contextBridge.exposeInMainWorld('api', {
 
   // Downloads
   downloadVideo: (url) => ipcRenderer.invoke('download-video', url),
+  downloadPlaylistUrl: (url) => ipcRenderer.invoke('download-playlist-url', url),
   onDownloadProgress: (callback) => {
     ipcRenderer.on('download-progress', (event, data) => callback(data));
   },
   getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
   openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
+  exportPlaylist: (playlistId) => ipcRenderer.invoke('export-playlist', { playlistId }),
 
   // Songs
   getSongs: () => ipcRenderer.invoke('get-songs'),

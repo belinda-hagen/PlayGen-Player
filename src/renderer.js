@@ -19,8 +19,13 @@
     volume: 0.8,
     searchQuery: '',
     isDownloading: false,
+    cancelDownload: false,
     dragSongId: null
   };
+
+  // ── Play transition guards ──────────────────────────────────────
+  let _playId = 0;
+  let _isTransitioning = false;
 
   // ── Audio ───────────────────────────────────────────────────────
   const audio = new Audio();
@@ -132,15 +137,52 @@
   // ── Modal ───────────────────────────────────────────────────────
   let modalResolve = null;
 
-  function showModal(title, placeholder = '', defaultValue = '', confirmText = 'CREATE') {
+  function showModal(title, placeholder = '', defaultValue = '', confirmText = 'CREATE', altText = null) {
     return new Promise((resolve) => {
       modalResolve = resolve;
       dom.modalTitle.textContent = title;
-      dom.modalInput.placeholder = placeholder;
-      dom.modalInput.value = defaultValue;
-      dom.modalConfirm.textContent = confirmText;
+
+      // Choice mode (two action buttons, no input) vs input mode
+      if (altText) {
+        dom.modalInput.style.display = 'none';
+        dom.modalConfirm.textContent = confirmText;
+
+        // Create alt button if not exists
+        let altBtn = dom.modalOverlay.querySelector('.modal-btn-alt');
+        if (!altBtn) {
+          altBtn = document.createElement('button');
+          altBtn.className = 'modal-btn modal-btn-cancel modal-btn-alt';
+          dom.modalConfirm.parentElement.insertBefore(altBtn, dom.modalConfirm);
+        }
+        altBtn.textContent = altText;
+        altBtn.style.display = '';
+        altBtn.onclick = () => {
+          altBtn.style.display = 'none';
+          dom.modalInput.style.display = '';
+          hideModal('single');
+        };
+        // Override confirm for choice mode
+        dom.modalConfirm.onclick = () => {
+          altBtn.style.display = 'none';
+          dom.modalInput.style.display = '';
+          hideModal('playlist');
+        };
+      } else {
+        dom.modalInput.style.display = '';
+        dom.modalInput.placeholder = placeholder;
+        dom.modalInput.value = defaultValue;
+        dom.modalConfirm.textContent = confirmText;
+
+        // Remove alt button if exists
+        const altBtn = dom.modalOverlay.querySelector('.modal-btn-alt');
+        if (altBtn) altBtn.style.display = 'none';
+
+        // Reset confirm handler
+        dom.modalConfirm.onclick = () => hideModal(dom.modalInput.value.trim());
+      }
+
       dom.modalOverlay.classList.add('visible');
-      setTimeout(() => dom.modalInput.focus(), 100);
+      if (!altText) setTimeout(() => dom.modalInput.focus(), 100);
     });
   }
 
@@ -153,7 +195,6 @@
   }
 
   dom.modalCancel.addEventListener('click', () => hideModal(null));
-  dom.modalConfirm.addEventListener('click', () => hideModal(dom.modalInput.value.trim()));
   dom.modalInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') hideModal(dom.modalInput.value.trim());
     if (e.key === 'Escape') hideModal(null);
@@ -351,6 +392,7 @@
     showContextMenu(x, y, [
       { label: '▶ Play All', action: () => playPlaylist(pl.id) },
       { divider: true },
+      { label: '📁 Export to folder', action: () => exportPlaylist(pl) },
       { label: '✎ Rename', action: () => renamePlaylist(pl) },
       { label: '✕ Delete', danger: true, action: () => deletePlaylist(pl) }
     ]);
@@ -697,6 +739,10 @@
   }
 
   // ── Download ────────────────────────────────────────────────────
+  function isPlaylistUrl(url) {
+    return /[?&]list=/.test(url) || /youtube\.com\/playlist/.test(url);
+  }
+
   async function downloadVideo() {
     const url = dom.urlInput.value.trim();
     if (!url) {
@@ -706,6 +752,26 @@
     }
 
     if (state.isDownloading) return;
+
+    // If it's a playlist URL, ask the user what they want to do
+    if (isPlaylistUrl(url)) {
+      const choice = await showModal(
+        'PLAYLIST DETECTED',
+        'This URL contains a playlist. Download all songs from the playlist?',
+        '',
+        'DOWNLOAD ALL',
+        'SINGLE ONLY'
+      );
+      if (choice === 'playlist') {
+        await downloadPlaylist(url);
+        return;
+      } else if (choice === 'single') {
+        // Continue with single video download below
+      } else {
+        return; // Cancelled
+      }
+    }
+
     state.isDownloading = true;
     dom.btnDownload.classList.add('downloading');
 
@@ -735,6 +801,113 @@
       setTimeout(() => {
         dom.downloadProgressContainer.classList.remove('active');
       }, 1500);
+    }
+  }
+
+  async function downloadPlaylist(url) {
+    state.isDownloading = true;
+    state.cancelDownload = false;
+    dom.btnDownload.classList.add('downloading');
+
+    dom.downloadProgressContainer.classList.add('active');
+    dom.downloadProgressTitle.textContent = 'Fetching playlist info...';
+    dom.downloadProgressPercent.textContent = '';
+    dom.downloadProgressFill.style.width = '0%';
+
+    // Show cancel button
+    let cancelBtn = dom.downloadProgressContainer.querySelector('.btn-cancel-download');
+    if (!cancelBtn) {
+      cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn-cancel-download';
+      cancelBtn.textContent = '✕ Cancel';
+      cancelBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,0.15);color:#ff5c9a;font-size:11px;padding:3px 12px;border-radius:20px;cursor:pointer;margin-left:12px;font-family:var(--font-display);letter-spacing:1px;transition:all 0.2s ease;';
+      cancelBtn.onmouseenter = () => { cancelBtn.style.borderColor = '#ff2d78'; cancelBtn.style.background = 'rgba(255,45,120,0.1)'; };
+      cancelBtn.onmouseleave = () => { cancelBtn.style.borderColor = 'rgba(255,255,255,0.15)'; cancelBtn.style.background = 'none'; };
+      dom.downloadProgressContainer.querySelector('.download-progress-info').appendChild(cancelBtn);
+    }
+    cancelBtn.style.display = '';
+    cancelBtn.onclick = () => {
+      state.cancelDownload = true;
+      cancelBtn.textContent = 'Cancelling...';
+      cancelBtn.style.pointerEvents = 'none';
+    };
+
+    try {
+      const result = await window.api.downloadPlaylistUrl(url);
+      if (!result.success) {
+        showToast(result.error || 'Failed to fetch playlist', 'error');
+        return;
+      }
+
+      const { videoUrls, playlistTitle, totalCount } = result;
+      showToast(`Downloading playlist "${playlistTitle}" (${totalCount} songs)`, 'info');
+      dom.urlInput.value = '';
+
+      let downloaded = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (let i = 0; i < videoUrls.length; i++) {
+        if (state.cancelDownload) {
+          showToast(`Download cancelled. ${downloaded} songs downloaded.`, 'info');
+          break;
+        }
+
+        const videoUrl = videoUrls[i];
+        const current = i + 1;
+
+        dom.downloadProgressTitle.textContent = `Playlist: ${current} / ${totalCount}`;
+        dom.downloadProgressPercent.textContent = `${Math.round((current / totalCount) * 100)}%`;
+        dom.downloadProgressFill.style.width = `${(current / totalCount) * 100}%`;
+
+        try {
+          const dlResult = await window.api.downloadVideo(videoUrl);
+          if (dlResult.success) {
+            downloaded++;
+          } else if (dlResult.error === 'Song already downloaded') {
+            skipped++;
+          } else {
+            failed++;
+            console.warn(`Failed to download ${videoUrl}:`, dlResult.error);
+          }
+        } catch (err) {
+          failed++;
+          console.error(`Error downloading ${videoUrl}:`, err);
+        }
+
+        // Refresh song list periodically
+        if (downloaded % 3 === 0 || current === videoUrls.length) {
+          state.songs = await window.api.getSongs();
+          renderSongList();
+        }
+
+        // Small delay between downloads to avoid rate limiting
+        if (i < videoUrls.length - 1 && !state.cancelDownload) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
+      // Final refresh
+      state.songs = await window.api.getSongs();
+      renderSongList();
+
+      let msg = `Playlist done: ${downloaded} downloaded`;
+      if (skipped > 0) msg += `, ${skipped} skipped`;
+      if (failed > 0) msg += `, ${failed} failed`;
+      showToast(msg, downloaded > 0 ? 'success' : 'info');
+
+    } catch (err) {
+      showToast('Playlist download error: ' + (err.message || err), 'error');
+      console.error('Playlist download exception:', err);
+    } finally {
+      state.isDownloading = false;
+      state.cancelDownload = false;
+      dom.btnDownload.classList.remove('downloading');
+      const cb = dom.downloadProgressContainer.querySelector('.btn-cancel-download');
+      if (cb) cb.style.display = 'none';
+      setTimeout(() => {
+        dom.downloadProgressContainer.classList.remove('active');
+      }, 2000);
     }
   }
 
@@ -788,13 +961,14 @@
   }
 
   // ── Player ──────────────────────────────────────────────────────
-  async function playSong(song) {
-    const filePath = await window.api.getSongPath(song.id);
-    if (!filePath) {
-      showToast('Audio file not found', 'error');
-      return;
-    }
+  function playSong(song) {
+    const playId = ++_playId;
+    _isTransitioning = true;
 
+    // Stop current audio immediately for responsive feel
+    audio.pause();
+
+    // Update state immediately — fully synchronous, no async gaps
     state.currentSong = song;
     state.isPlaying = true;
 
@@ -804,15 +978,39 @@
     // Find index in queue
     state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === song.id);
 
-    audio.src = `file://${filePath}`;
+    // Update UI immediately for instant visual feedback
+    updatePlayerUI();
+    updatePlayerSongInfo();
+    renderSongList();
+
+    // Set player classes immediately (don't wait for audio 'play' event)
+    dom.playerThumbnail.classList.remove('paused');
+    dom.btnPlay.classList.add('is-playing');
+    document.body.classList.add('audio-playing');
+
+    // Use filePath directly from song object — no async IPC needed
+    if (!song.filePath) {
+      _isTransitioning = false;
+      showToast('Audio file not found', 'error');
+      state.currentSong = null;
+      state.isPlaying = false;
+      state.currentQueueIndex = -1;
+      updatePlayerUI();
+      updatePlayerSongInfo();
+      renderSongList();
+      dom.btnPlay.classList.remove('is-playing');
+      document.body.classList.remove('audio-playing');
+      return;
+    }
+
+    audio.src = `file://${song.filePath}`;
     audio.play().catch(err => {
+      if (playId !== _playId) return;
+      _isTransitioning = false;
       console.error('Play error:', err);
       showToast('Failed to play audio', 'error');
     });
 
-    updatePlayerUI();
-    updatePlayerSongInfo();
-    renderSongList(); // Update playing indicator
     initVisualizer();
     saveSession();
   }
@@ -871,6 +1069,22 @@
     renderSongList();
     const firstSong = state.songs.find(s => s.id === pl.songs[0]);
     if (firstSong) playSong(firstSong);
+  }
+
+  async function exportPlaylist(pl) {
+    showToast(`Exporting "${pl.name}"...`, 'info');
+    try {
+      const result = await window.api.exportPlaylist(pl.id);
+      if (!result.success) {
+        if (result.error !== 'Cancelled') showToast(result.error, 'error');
+        return;
+      }
+      let msg = `Exported ${result.copied} songs to folder`;
+      if (result.failed > 0) msg += ` (${result.failed} failed)`;
+      showToast(msg, 'success');
+    } catch (err) {
+      showToast('Export failed: ' + (err.message || err), 'error');
+    }
   }
 
   function togglePlay() {
@@ -1125,13 +1339,14 @@
   });
 
   audio.addEventListener('ended', () => {
+    if (_isTransitioning) return;
     playNext();
   });
 
   audio.addEventListener('play', () => {
+    _isTransitioning = false;
     state.isPlaying = true;
     updatePlayerUI();
-    renderSongList();
     dom.playerThumbnail.classList.remove('paused');
     dom.btnPlay.classList.add('is-playing');
     document.body.classList.add('audio-playing');
@@ -1139,13 +1354,22 @@
   });
 
   audio.addEventListener('pause', () => {
+    if (_isTransitioning) return;
     state.isPlaying = false;
     updatePlayerUI();
-    renderSongList();
     dom.playerThumbnail.classList.add('paused');
     dom.btnPlay.classList.remove('is-playing');
     document.body.classList.remove('audio-playing');
     sendMiniPlayerState();
+  });
+
+  audio.addEventListener('error', () => {
+    if (_isTransitioning) _isTransitioning = false;
+    state.isPlaying = false;
+    updatePlayerUI();
+    dom.btnPlay.classList.remove('is-playing');
+    document.body.classList.remove('audio-playing');
+    showToast('Audio file not found or corrupted', 'error');
   });
 
   // ── Visualizer ──────────────────────────────────────────────────
