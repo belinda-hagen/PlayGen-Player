@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/belinda-hagen/PlayGen/releases/latest"><img src="https://img.shields.io/github/v/tag/belinda-hagen/PlayGen?label=Version&style=flat-square&color=ff2d78" alt="Version" /></a>
-  <a href="https://github.com/belinda-hagen/PlayGen/releases"><img src="https://img.shields.io/github/downloads/belinda-hagen/PlayGen/total?style=flat-square&color=ff2d78&label=Downloads" alt="Downloads" /></a>
+  <a href="https://github.com/belinda-hagen/PlayGen/releases"><img src="https://img.shields.io/github/downloads/belinda-hagen/PlayGen/total?style=flat-square&color=ff8c00&label=Downloads" alt="Downloads" /></a>
   <img src="https://img.shields.io/badge/Electron-28-191970?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white" alt="Platform" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-ff2d78?style=flat-square" alt="License" /></a>
