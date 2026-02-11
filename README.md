@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/github/downloads/belinda-hagen/PlayGen/total?style=for-the-badge&color=ff2d78&label=Downloads" alt="Downloads" />
   <img src="https://img.shields.io/badge/Electron-28-191970?style=for-the-badge&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Platform" />
@@ -38,7 +39,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/PlayGen.git
+git clone https://github.com/belinda-hagen/PlayGen.git
 cd PlayGen
 npm install
 npm start
