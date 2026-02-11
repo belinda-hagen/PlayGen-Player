@@ -1832,26 +1832,15 @@ body.audio-playing .playing-bar {
 .loading-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   margin-bottom: 8px;
 }
 
-.loading-logo-icon {
-  font-size: 32px;
-  color: var(--pink);
-  filter: drop-shadow(0 0 10px var(--pink));
-}
-
-.loading-logo-text {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-100);
-  letter-spacing: 2px;
-}
-
-.loading-logo-accent {
-  color: var(--pink);
+.loading-logo-img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 20px rgba(255, 65, 105, 0.3));
 }
 
 .loading-spinner {
