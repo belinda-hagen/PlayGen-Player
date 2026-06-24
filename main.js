@@ -29,6 +29,19 @@ function saveDB(db) {
 
 let db = loadDB();
 
+function normalizePlaylist(playlist) {
+  if (typeof playlist.nextSongDelaySeconds !== 'number') {
+    playlist.nextSongDelaySeconds = 0;
+  }
+  return playlist;
+}
+
+function normalizePlaylists() {
+  db.playlists = (db.playlists || []).map(normalizePlaylist);
+}
+
+normalizePlaylists();
+
 // ── Check Dependencies & Resolve Paths ────────────────────────────
 let ytdlpPath = 'yt-dlp';
 let ffmpegPath = 'ffmpeg';
@@ -127,7 +140,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false
     },
-    icon: path.join(__dirname, 'assets', 'icon.png')
+    icon: path.join(__dirname, 'assets', 'playgen-icon.png')
   });
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
@@ -191,7 +204,7 @@ function createMiniPlayer() {
       nodeIntegration: true,
       contextIsolation: false
     },
-    icon: path.join(__dirname, 'assets', 'icon.png')
+    icon: path.join(__dirname, 'assets', 'playgen-icon.png')
   });
 
   miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'));
@@ -482,13 +495,18 @@ ipcMain.handle('get-song-path', (event, songId) => {
 });
 
 // ── IPC: Playlists ────────────────────────────────────────────────
-ipcMain.handle('get-playlists', () => db.playlists);
+ipcMain.handle('get-playlists', () => {
+  normalizePlaylists();
+  saveDB(db);
+  return db.playlists;
+});
 
 ipcMain.handle('create-playlist', (event, name) => {
   const playlist = {
     id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
     name,
     songs: [],
+    nextSongDelaySeconds: 0,
     dateCreated: new Date().toISOString()
   };
   db.playlists.push(playlist);
@@ -500,6 +518,26 @@ ipcMain.handle('rename-playlist', (event, { playlistId, name }) => {
   const pl = db.playlists.find(p => p.id === playlistId);
   if (pl) {
     pl.name = name;
+    saveDB(db);
+  }
+  return { success: true };
+});
+
+ipcMain.handle('update-playlist', (event, payload = {}) => {
+  const { playlistId } = payload;
+  let { updates } = payload;
+  const pl = db.playlists.find(p => p.id === playlistId);
+  if (pl) {
+    updates = updates || {};
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'name')) {
+      pl.name = String(updates.name);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'nextSongDelaySeconds')) {
+      pl.nextSongDelaySeconds = Math.max(0, Number(updates.nextSongDelaySeconds) || 0);
+    }
+
     saveDB(db);
   }
   return { success: true };
@@ -597,7 +635,7 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
 
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
-  return db.settings || { miniPlayerOnMinimize: true };
+  return { miniPlayerOnMinimize: true, ...(db.settings || {}) };
 });
 
 ipcMain.handle('save-settings', (event, settings) => {

@@ -24,10 +24,21 @@
     dragSongId: null
   };
 
+  const NEXT_DELAY_OPTIONS = [
+    { value: 0, label: 'Instant' },
+    { value: 1, label: '1 second' },
+    { value: 2, label: '2 seconds' },
+    { value: 3, label: '3 seconds' },
+    { value: 5, label: '5 seconds' },
+    { value: 10, label: '10 seconds' },
+    { value: 30, label: '30 seconds' }
+  ];
+
   // ── Play transition guards ──────────────────────────────────────
   let _playId = 0;
   let _currentPlayId = 0;  // The playId that event handlers should respond to
   let _isTransitioning = false;
+  let nextSongTimer = null;
 
   // ── Audio ───────────────────────────────────────────────────────
   const audio = new Audio();
@@ -102,7 +113,10 @@
 
     // Modal
     modalOverlay: $('#modal-overlay'),
+    modalMedia: $('#modal-media'),
+    modalEyebrow: $('#modal-eyebrow'),
     modalTitle: $('#modal-title'),
+    modalMessage: $('#modal-message'),
     modalInput: $('#modal-input'),
     modalCancel: $('#modal-cancel'),
     modalConfirm: $('#modal-confirm'),
@@ -132,10 +146,157 @@
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  function normalizeDelay(value) {
+    return Math.max(0, Number(value) || 0);
+  }
+
+  function getDelayLabel(value) {
+    const delay = normalizeDelay(value);
+    return NEXT_DELAY_OPTIONS.find(option => option.value === delay)?.label || `${delay} seconds`;
+  }
+
+  function getToastIcon(icon, type) {
+    const icons = {
+      playlist: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+          <path d="M3 6h4"/>
+        </svg>
+      `,
+      download: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 3v12"/>
+          <path d="m7 10 5 5 5-5"/>
+          <path d="M5 21h14"/>
+        </svg>
+      `,
+      music: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+        </svg>
+      `,
+      plus: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14"/>
+          <path d="M5 12h14"/>
+        </svg>
+      `,
+      edit: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+      `,
+      trash: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 6h18"/>
+          <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        </svg>
+      `,
+      clock: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v5l3 2"/>
+        </svg>
+      `,
+      export: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7l-2-2H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1Z"/>
+          <path d="M12 11v6"/>
+          <path d="M9.5 13.5 12 11l2.5 2.5"/>
+        </svg>
+      `,
+      link: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/>
+          <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
+        </svg>
+      `,
+      error: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v6"/>
+          <path d="M12 17h.01"/>
+        </svg>
+      `,
+      info: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 11v5"/>
+          <path d="M12 8h.01"/>
+        </svg>
+      `,
+      success: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 6 9 17l-5-5"/>
+        </svg>
+      `
+    };
+
+    if (icon && icons[icon]) return icons[icon];
+    if (type === 'error') return icons.error;
+    if (type === 'info') return icons.info;
+    return icons.success;
+  }
+
   function showToast(message, type = 'info') {
+    // Normalize plain strings into the rich toast shape so every toast
+    // uses the same card style as the "added to playlist" notification.
+    const data = (typeof message === 'object' && message !== null)
+      ? message
+      : { title: message };
+    const toastType = data.type || type;
+
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
+    toast.className = `toast ${toastType} toast-rich`;
+    toast.setAttribute('role', toastType === 'error' ? 'alert' : 'status');
+
+    const media = document.createElement('div');
+    media.className = 'toast-media';
+
+    if (data.thumbnail) {
+      const img = document.createElement('img');
+      img.src = data.thumbnail;
+      img.alt = '';
+      img.onerror = () => {
+        media.classList.add('icon-only');
+        media.innerHTML = getToastIcon(data.icon, toastType);
+      };
+      media.appendChild(img);
+    } else {
+      media.classList.add('icon-only');
+      media.innerHTML = getToastIcon(data.icon, toastType);
+    }
+
+    const content = document.createElement('div');
+    content.className = 'toast-content';
+
+    if (data.eyebrow) {
+      const eyebrow = document.createElement('div');
+      eyebrow.className = 'toast-eyebrow';
+      eyebrow.textContent = data.eyebrow;
+      content.appendChild(eyebrow);
+    }
+
+    const title = document.createElement('div');
+    title.className = 'toast-title';
+    title.textContent = data.title || '';
+    content.appendChild(title);
+
+    if (data.detail) {
+      const detail = document.createElement('div');
+      detail.className = 'toast-detail';
+      detail.textContent = data.detail;
+      content.appendChild(detail);
+    }
+
+    toast.append(media, content);
+
     dom.toastContainer.appendChild(toast);
     setTimeout(() => {
       toast.classList.add('fade-out');
@@ -143,18 +304,74 @@
     }, 3000);
   }
 
+  function showPlaylistAddToast(song, playlist) {
+    showToast({
+      type: 'success',
+      icon: 'playlist',
+      eyebrow: 'Added to playlist',
+      title: playlist?.name || 'Playlist',
+      detail: song?.title || 'Song added',
+      thumbnail: song?.thumbnail
+    });
+  }
+
+  function showPlaylistRemoveToast(song, playlist) {
+    showToast({
+      type: 'info',
+      icon: 'playlist',
+      eyebrow: 'Removed from playlist',
+      title: playlist?.name || 'Playlist',
+      detail: song?.title || 'Song removed',
+      thumbnail: song?.thumbnail
+    });
+  }
+
+  function showDownloadToast(song) {
+    showToast({
+      type: 'success',
+      icon: 'download',
+      eyebrow: 'Download complete',
+      title: song?.title || 'Song downloaded',
+      detail: song?.channel || 'Ready in your library',
+      thumbnail: song?.thumbnail
+    });
+  }
+
   // ── Modal ───────────────────────────────────────────────────────
   let modalResolve = null;
 
-  function showModal(title, placeholder = '', defaultValue = '', confirmText = 'CREATE', altText = null) {
+  function showModal(title, placeholder = '', defaultValue = '', confirmText = 'CREATE', altText = null, opts = {}) {
     return new Promise((resolve) => {
       modalResolve = resolve;
       dom.modalTitle.textContent = title;
+
+      // Toast-style card chrome: icon media + eyebrow (shown when provided)
+      if (opts.icon) {
+        dom.modalMedia.innerHTML = getToastIcon(opts.icon, 'info');
+        dom.modalMedia.style.display = '';
+      } else {
+        dom.modalMedia.style.display = 'none';
+      }
+
+      if (opts.eyebrow) {
+        dom.modalEyebrow.textContent = opts.eyebrow;
+        dom.modalEyebrow.style.display = '';
+      } else {
+        dom.modalEyebrow.style.display = 'none';
+      }
 
       // Choice mode (two action buttons, no input) vs input mode
       if (altText) {
         dom.modalInput.style.display = 'none';
         dom.modalConfirm.textContent = confirmText;
+
+        // In choice mode the descriptive text is shown as the message body
+        if (placeholder) {
+          dom.modalMessage.textContent = placeholder;
+          dom.modalMessage.style.display = '';
+        } else {
+          dom.modalMessage.style.display = 'none';
+        }
 
         // Create alt button if not exists
         let altBtn = dom.modalOverlay.querySelector('.modal-btn-alt');
@@ -177,6 +394,7 @@
           hideModal('playlist');
         };
       } else {
+        dom.modalMessage.style.display = 'none';
         dom.modalInput.style.display = '';
         dom.modalInput.placeholder = placeholder;
         dom.modalInput.value = defaultValue;
@@ -378,7 +596,7 @@
           renderSidebar();
           if (state.currentView === pl.id) renderSongList();
           const song = state.songs.find(s => s.id === songId);
-          showToast(`Added "${song?.title || 'song'}" to ${pl.name}`, 'success');
+          showPlaylistAddToast(song, pl);
         }
       });
 
@@ -400,13 +618,29 @@
     });
   }
 
+  function showPlaylistDelayMenu(x, y, pl) {
+    const currentDelay = normalizeDelay(pl.nextSongDelaySeconds);
+    showContextMenu(x, y, NEXT_DELAY_OPTIONS.map(option => ({
+      label: `${option.label}${option.value === currentDelay ? ' (current)' : ''}`,
+      action: () => updatePlaylistDelay(pl, option.value)
+    })));
+  }
+
   function showPlaylistContextMenu(x, y, pl) {
+    const currentDelay = normalizeDelay(pl.nextSongDelaySeconds);
     showContextMenu(x, y, [
-      { label: '▶ Play All', action: () => playPlaylist(pl.id) },
+      { label: 'Play All', action: () => playPlaylist(pl.id) },
       { divider: true },
-      { label: '📁 Export to folder', action: () => exportPlaylist(pl) },
-      { label: '✎ Rename', action: () => renamePlaylist(pl) },
-      { label: '✕ Delete', danger: true, action: () => deletePlaylist(pl) }
+      { label: 'Export to folder', action: () => exportPlaylist(pl) },
+      {
+        label: 'Next song delay',
+        submenu: NEXT_DELAY_OPTIONS.map(option => ({
+          label: `${option.label}${option.value === currentDelay ? ' (current)' : ''}`,
+          action: () => updatePlaylistDelay(pl, option.value)
+        }))
+      },
+      { label: 'Rename', action: () => renamePlaylist(pl) },
+      { label: 'Delete', danger: true, action: () => deletePlaylist(pl) }
     ]);
   }
 
@@ -420,17 +654,117 @@
     }
   }
 
+  // ── Hero Cover Color ────────────────────────────────────────────
+  // Derive a colour gradient for the hero banner from the cover art so the
+  // background "adjusts" with the music. Falls back to the brand colours when
+  // a cover can't be read (e.g. no song, or a tainted/blocked image).
+  const heroPaletteCache = new Map();
+  let _heroColorUrl = null;
+  let _heroColorToken = 0;
+
+  function colorDistance(a, b) {
+    return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+  }
+
+  function shade(c, factor) {
+    return {
+      r: Math.round(c.r * factor),
+      g: Math.round(c.g * factor),
+      b: Math.round(c.b * factor)
+    };
+  }
+
+  function getCoverPalette(img) {
+    const size = 56;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, size, size);
+    const { data } = ctx.getImageData(0, 0, size, size); // throws if the canvas is tainted
+
+    const buckets = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      if (a < 125) continue;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const sat = max === 0 ? 0 : (max - min) / max;
+      const key = `${r >> 4}-${g >> 4}-${b >> 4}`;
+      let bk = buckets.get(key);
+      if (!bk) { bk = { r: 0, g: 0, b: 0, n: 0, score: 0 }; buckets.set(key, bk); }
+      bk.r += r; bk.g += g; bk.b += b; bk.n++;
+      // Favour saturated, mid-bright colours; downweight near-black/white
+      const lumWeight = 1 - Math.min(1, Math.abs(lum - 0.5) * 1.6);
+      bk.score += (0.1 + sat) * Math.max(0.08, lumWeight);
+    }
+    if (buckets.size === 0) return null;
+
+    const colors = [...buckets.values()].map(bk => ({
+      r: Math.round(bk.r / bk.n),
+      g: Math.round(bk.g / bk.n),
+      b: Math.round(bk.b / bk.n),
+      score: bk.score
+    })).sort((a, b) => b.score - a.score);
+
+    const dominant = colors[0];
+    const secondary = colors.find(c => colorDistance(c, dominant) > 70) || shade(dominant, 0.6);
+    return { dominant, secondary };
+  }
+
+  function setHeroColorVars(hero, pal) {
+    if (!hero) return;
+    if (!pal) {
+      hero.style.removeProperty('--hero-c1');
+      hero.style.removeProperty('--hero-c2');
+      return;
+    }
+    hero.style.setProperty('--hero-c1', `${pal.dominant.r}, ${pal.dominant.g}, ${pal.dominant.b}`);
+    hero.style.setProperty('--hero-c2', `${pal.secondary.r}, ${pal.secondary.g}, ${pal.secondary.b}`);
+  }
+
+  function applyHeroColor(url) {
+    const hero = document.getElementById('view-hero');
+    if (!hero) return;
+    if (url === _heroColorUrl) return; // already applied / in-flight for this cover
+    _heroColorUrl = url || null;
+    const token = ++_heroColorToken;
+
+    if (!url) { setHeroColorVars(hero, null); return; }
+
+    if (heroPaletteCache.has(url)) {
+      setHeroColorVars(hero, heroPaletteCache.get(url));
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let pal = null;
+      try { pal = getCoverPalette(img); } catch { pal = null; }
+      heroPaletteCache.set(url, pal);
+      if (token === _heroColorToken) setHeroColorVars(hero, pal);
+    };
+    img.onerror = () => {
+      heroPaletteCache.set(url, null);
+      if (token === _heroColorToken) setHeroColorVars(hero, null);
+    };
+    img.src = url;
+  }
+
   // ── Render: Song List ───────────────────────────────────────────
   function renderSongList() {
     let songs = [];
     let viewTitle = 'All Downloads';
     let isPlaylistView = false;
+    let currentPlaylist = null;
 
     if (state.currentView === 'all') {
       songs = state.songs;
     } else {
       const pl = state.playlists.find(p => p.id === state.currentView);
       if (pl) {
+        currentPlaylist = pl;
         viewTitle = pl.name;
         isPlaylistView = true;
         songs = pl.songs.map(id => state.songs.find(s => s.id === id)).filter(Boolean);
@@ -464,6 +798,7 @@
     if (heroBg) {
       heroBg.style.backgroundImage = heroSong ? `url("${heroSong.thumbnail}")` : '';
     }
+    applyHeroColor(heroSong ? heroSong.thumbnail : null);
     if (heroThumb) {
       if (heroSong) {
         heroThumb.innerHTML = `<img src="${escapeHtml(heroSong.thumbnail)}" alt="">`;
@@ -472,7 +807,7 @@
       }
     }
 
-    // Play All button for playlists
+    // Header actions
     dom.viewHeaderRight.innerHTML = '';
     if (songs.length > 0) {
       const btn = document.createElement('button');
@@ -481,7 +816,7 @@
         <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
           <polygon points="5,3 19,12 5,21"/>
         </svg>
-        <span>PLAY ALL</span>
+        <span>Play All</span>
       `;
       btn.addEventListener('click', () => {
         if (state.currentView === 'all') {
@@ -491,6 +826,28 @@
         }
       });
       dom.viewHeaderRight.appendChild(btn);
+    }
+
+    if (isPlaylistView && currentPlaylist) {
+      const delayBtn = document.createElement('button');
+      delayBtn.className = 'btn-playlist-delay';
+      delayBtn.title = `Playlist delay: ${getDelayLabel(currentPlaylist.nextSongDelaySeconds)}`;
+      delayBtn.setAttribute('aria-label', 'Playlist delay settings');
+      delayBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <line x1="4" y1="7" x2="20" y2="7"/>
+          <line x1="4" y1="17" x2="20" y2="17"/>
+          <circle cx="9" cy="7" r="2"/>
+          <circle cx="15" cy="17" r="2"/>
+        </svg>
+        <span>${getDelayLabel(currentPlaylist.nextSongDelaySeconds)}</span>
+      `;
+      delayBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rect = delayBtn.getBoundingClientRect();
+        showPlaylistDelayMenu(rect.left, rect.bottom + 8, currentPlaylist);
+      });
+      dom.viewHeaderRight.appendChild(delayBtn);
     }
 
     // Show/hide empty state & column header
@@ -587,11 +944,15 @@
     const removeBtn = item.querySelector('.remove-from-playlist');
     removeBtn?.addEventListener('click', async (e) => {
       e.stopPropagation();
-      await window.api.removeFromPlaylist(state.currentView, song.id);
+      const fromView = state.currentView;
+      // Stop playback if we're removing the song that's currently playing from this playlist.
+      const wasPlayingHere = state.currentSong?.id === song.id && state.playingFromView === fromView;
+      await window.api.removeFromPlaylist(fromView, song.id);
+      if (wasPlayingHere) stopCurrentPlayback();
       state.playlists = await window.api.getPlaylists();
       renderSidebar();
       renderSongList();
-      showToast('Removed from playlist', 'info');
+      showPlaylistRemoveToast(song, state.playlists.find(p => p.id === fromView));
     });
 
     // Delete button
@@ -674,7 +1035,7 @@
 
   function showSongContextMenu(x, y, song, isPlaylistView) {
     const items = [
-      { label: '▶ Play', action: () => playSong(song) },
+      { label: 'Play', action: () => playSong(song) },
       { divider: true }
     ];
 
@@ -689,7 +1050,7 @@
             state.playlists = await window.api.getPlaylists();
             renderSidebar();
             if (state.currentView === pl.id) renderSongList();
-            showToast(`Added to "${pl.name}"`, 'success');
+            showPlaylistAddToast(song, pl);
           }
         }))
       });
@@ -699,28 +1060,40 @@
       items.push({
         label: '− Remove from Playlist',
         action: async () => {
-          await window.api.removeFromPlaylist(state.currentView, song.id);
+          const fromView = state.currentView;
+          // Stop playback if we're removing the song that's currently playing from this playlist.
+          const wasPlayingHere = state.currentSong?.id === song.id && state.playingFromView === fromView;
+          await window.api.removeFromPlaylist(fromView, song.id);
+          if (wasPlayingHere) stopCurrentPlayback();
           state.playlists = await window.api.getPlaylists();
           renderSidebar();
           renderSongList();
-          showToast('Removed from playlist', 'info');
+          showPlaylistRemoveToast(song, state.playlists.find(p => p.id === fromView));
         }
       });
+    } else {
+      // Permanent delete is only available in the Downloads (All) view —
+      // inside a playlist a song can only be removed from that playlist.
+      items.push({ divider: true });
+      items.push({
+        label: 'Delete Song',
+        danger: true,
+        action: () => deleteSong(song)
+      });
     }
-
-    items.push({ divider: true });
-    items.push({
-      label: '✕ Delete Song',
-      danger: true,
-      action: () => deleteSong(song)
-    });
 
     showContextMenu(x, y, items);
   }
 
   function showAddToPlaylistMenu(x, y, songId) {
     if (state.playlists.length === 0) {
-      showToast('Create a playlist first', 'info');
+      showToast({
+        type: 'info',
+        icon: 'playlist',
+        eyebrow: 'No playlists yet',
+        title: 'Create a playlist first',
+        detail: 'Make a playlist to start adding songs.'
+      });
       return;
     }
 
@@ -732,7 +1105,7 @@
         renderSidebar();
         if (state.currentView === pl.id) renderSongList();
         const song = state.songs.find(s => s.id === songId);
-        showToast(`Added to "${pl.name}"`, 'success');
+        showPlaylistAddToast(song, pl);
       }
     }));
 
@@ -767,7 +1140,13 @@
   async function downloadVideo() {
     const url = dom.urlInput.value.trim();
     if (!url) {
-      showToast('Please paste a YouTube URL', 'error');
+      showToast({
+        type: 'error',
+        icon: 'link',
+        eyebrow: 'Missing link',
+        title: 'Paste a YouTube URL',
+        detail: 'Add a link to start downloading.'
+      });
       dom.urlInput.focus();
       return;
     }
@@ -777,11 +1156,12 @@
     // If it's a playlist URL, ask the user what they want to do
     if (isPlaylistUrl(url)) {
       const choice = await showModal(
-        'PLAYLIST DETECTED',
-        'This URL contains a playlist. Download all songs from the playlist?',
+        'Download the whole playlist?',
+        'This link contains a playlist. Download every song, or just this one?',
         '',
         'DOWNLOAD ALL',
-        'SINGLE ONLY'
+        'SINGLE ONLY',
+        { icon: 'playlist', eyebrow: 'Playlist detected' }
       );
       if (choice === 'playlist') {
         await downloadPlaylist(url);
@@ -808,13 +1188,25 @@
         dom.urlInput.value = '';
         state.songs = await window.api.getSongs();
         renderSongList();
-        showToast(`Downloaded: ${result.song.title}`, 'success');
+        showDownloadToast(result.song);
       } else {
-        showToast(result.error || 'Download failed', 'error');
+        showToast({
+          type: 'error',
+          icon: 'download',
+          eyebrow: 'Download failed',
+          title: 'Could not download',
+          detail: result.error || 'Something went wrong.'
+        });
         console.error('Download failed:', result.error);
       }
     } catch (err) {
-      showToast('Download error: ' + (err.message || err), 'error');
+      showToast({
+        type: 'error',
+        icon: 'download',
+        eyebrow: 'Download error',
+        title: 'Could not download',
+        detail: err.message || String(err)
+      });
       console.error('Download exception:', err);
     } finally {
       state.isDownloading = false;
@@ -840,10 +1232,7 @@
     if (!cancelBtn) {
       cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn-cancel-download';
-      cancelBtn.textContent = '✕ Cancel';
-      cancelBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,0.15);color:#ff5c9a;font-size:11px;padding:3px 12px;border-radius:20px;cursor:pointer;margin-left:12px;font-family:var(--font-display);letter-spacing:1px;transition:all 0.2s ease;';
-      cancelBtn.onmouseenter = () => { cancelBtn.style.borderColor = '#ff2d78'; cancelBtn.style.background = 'rgba(255,45,120,0.1)'; };
-      cancelBtn.onmouseleave = () => { cancelBtn.style.borderColor = 'rgba(255,255,255,0.15)'; cancelBtn.style.background = 'none'; };
+      cancelBtn.textContent = 'Cancel';
       dom.downloadProgressContainer.querySelector('.download-progress-info').appendChild(cancelBtn);
     }
     cancelBtn.style.display = '';
@@ -856,12 +1245,24 @@
     try {
       const result = await window.api.downloadPlaylistUrl(url);
       if (!result.success) {
-        showToast(result.error || 'Failed to fetch playlist', 'error');
+        showToast({
+          type: 'error',
+          icon: 'playlist',
+          eyebrow: 'Playlist error',
+          title: 'Could not fetch playlist',
+          detail: result.error || 'Something went wrong.'
+        });
         return;
       }
 
       const { videoUrls, playlistTitle, totalCount } = result;
-      showToast(`Downloading playlist "${playlistTitle}" (${totalCount} songs)`, 'info');
+      showToast({
+        type: 'info',
+        icon: 'download',
+        eyebrow: 'Downloading playlist',
+        title: playlistTitle || 'Playlist',
+        detail: `${totalCount} songs queued`
+      });
       dom.urlInput.value = '';
 
       let downloaded = 0;
@@ -870,7 +1271,13 @@
 
       for (let i = 0; i < videoUrls.length; i++) {
         if (state.cancelDownload) {
-          showToast(`Download cancelled. ${downloaded} songs downloaded.`, 'info');
+          showToast({
+            type: 'info',
+            icon: 'download',
+            eyebrow: 'Download cancelled',
+            title: playlistTitle || 'Playlist',
+            detail: `${downloaded} songs downloaded`
+          });
           break;
         }
 
@@ -912,13 +1319,25 @@
       state.songs = await window.api.getSongs();
       renderSongList();
 
-      let msg = `Playlist done: ${downloaded} downloaded`;
-      if (skipped > 0) msg += `, ${skipped} skipped`;
-      if (failed > 0) msg += `, ${failed} failed`;
-      showToast(msg, downloaded > 0 ? 'success' : 'info');
+      let summary = `${downloaded} downloaded`;
+      if (skipped > 0) summary += `, ${skipped} skipped`;
+      if (failed > 0) summary += `, ${failed} failed`;
+      showToast({
+        type: downloaded > 0 ? 'success' : 'info',
+        icon: 'download',
+        eyebrow: 'Playlist complete',
+        title: playlistTitle || 'Playlist',
+        detail: summary
+      });
 
     } catch (err) {
-      showToast('Playlist download error: ' + (err.message || err), 'error');
+      showToast({
+        type: 'error',
+        icon: 'download',
+        eyebrow: 'Download error',
+        title: 'Playlist download failed',
+        detail: err.message || String(err)
+      });
       console.error('Playlist download exception:', err);
     } finally {
       state.isDownloading = false;
@@ -934,16 +1353,22 @@
 
   // ── Playlist Management ─────────────────────────────────────────
   async function createPlaylist() {
-    const name = await showModal('NEW PLAYLIST', 'Enter playlist name...', '', 'CREATE');
+    const name = await showModal('New Playlist', 'Enter playlist name...', '', 'Create');
     if (!name) return;
     await window.api.createPlaylist(name);
     state.playlists = await window.api.getPlaylists();
     renderSidebar();
-    showToast(`Created playlist "${name}"`, 'success');
+    showToast({
+      type: 'success',
+      icon: 'plus',
+      eyebrow: 'Playlist created',
+      title: name,
+      detail: 'Ready for songs'
+    });
   }
 
   async function renamePlaylist(pl) {
-    const name = await showModal('RENAME PLAYLIST', 'Enter new name...', pl.name, 'RENAME');
+    const name = await showModal('Rename Playlist', 'Enter new name...', pl.name, 'Rename');
     if (!name) return;
     await window.api.renamePlaylist(pl.id, name);
     state.playlists = await window.api.getPlaylists();
@@ -951,7 +1376,27 @@
     if (state.currentView === pl.id) {
       dom.viewTitle.textContent = name;
     }
-    showToast(`Renamed to "${name}"`, 'success');
+    showToast({
+      type: 'success',
+      icon: 'edit',
+      eyebrow: 'Playlist renamed',
+      title: name
+    });
+  }
+
+  async function updatePlaylistDelay(pl, delaySeconds) {
+    const delay = normalizeDelay(delaySeconds);
+    await window.api.updatePlaylist(pl.id, { nextSongDelaySeconds: delay });
+    state.playlists = await window.api.getPlaylists();
+    renderSidebar();
+    if (state.currentView === pl.id) renderSongList();
+    showToast({
+      type: 'success',
+      icon: 'clock',
+      eyebrow: 'Delay updated',
+      title: pl.name,
+      detail: `Next song delay: ${getDelayLabel(delay)}`
+    });
   }
 
   async function deletePlaylist(pl) {
@@ -963,27 +1408,89 @@
     renderSidebar();
     highlightActiveNav();
     renderSongList();
-    showToast(`Deleted playlist "${pl.name}"`, 'info');
+    showToast({
+      type: 'info',
+      icon: 'trash',
+      eyebrow: 'Playlist deleted',
+      title: pl.name
+    });
   }
 
   async function deleteSong(song) {
     if (state.currentSong?.id === song.id) {
-      audio.pause();
-      state.currentSong = null;
-      state.playingFromView = null;
-      state.isPlaying = false;
-      updatePlayerUI();
+      stopCurrentPlayback();
     }
     await window.api.deleteSong(song.id);
     state.songs = await window.api.getSongs();
     state.playlists = await window.api.getPlaylists();
     renderSidebar();
     renderSongList();
-    showToast(`Deleted "${song.title}"`, 'info');
+    showToast({
+      type: 'info',
+      icon: 'trash',
+      eyebrow: 'Song deleted',
+      title: song.title,
+      thumbnail: song.thumbnail
+    });
   }
 
   // ── Player ──────────────────────────────────────────────────────
+  function clearNextSongTimer() {
+    if (!nextSongTimer) return;
+    clearTimeout(nextSongTimer);
+    nextSongTimer = null;
+  }
+
+  function scheduleNextSong() {
+    clearNextSongTimer();
+
+    state.isPlaying = false;
+    updatePlayerUI();
+    dom.playerThumbnail.classList.add('paused');
+    dom.btnPlay.classList.remove('is-playing');
+    document.body.classList.remove('audio-playing');
+    sendMiniPlayerState();
+
+    const delayMs = getActiveNextSongDelay() * 1000;
+    if (delayMs === 0) {
+      playNext();
+      return;
+    }
+
+    nextSongTimer = setTimeout(() => {
+      nextSongTimer = null;
+      playNext();
+    }, delayMs);
+  }
+
+  function getActiveNextSongDelay() {
+    if (state.playingFromView && state.playingFromView !== 'all') {
+      const pl = state.playlists.find(p => p.id === state.playingFromView);
+      return normalizeDelay(pl?.nextSongDelaySeconds);
+    }
+
+    return 0;
+  }
+
+  // Fully stop playback and clear the now-playing state/UI.
+  function stopCurrentPlayback() {
+    clearNextSongTimer();
+    audio.pause();
+    state.currentSong = null;
+    state.playingFromView = null;
+    state.isPlaying = false;
+    state.currentQueueIndex = -1;
+    state.currentQueue = [];
+    dom.playerThumbnail.classList.add('paused');
+    dom.btnPlay.classList.remove('is-playing');
+    document.body.classList.remove('audio-playing');
+    updatePlayerUI();
+    updatePlayerSongInfo();
+  }
+
   function playSong(song) {
+    clearNextSongTimer();
+
     const playId = ++_playId;
     _currentPlayId = playId;  // Event handlers will check this
     _isTransitioning = true;
@@ -1015,7 +1522,13 @@
     // Use filePath directly from song object — no async IPC needed
     if (!song.filePath) {
       _isTransitioning = false;
-      showToast('Audio file not found', 'error');
+      showToast({
+        type: 'error',
+        icon: 'music',
+        eyebrow: 'Playback error',
+        title: 'Audio file not found',
+        detail: song?.title
+      });
       state.currentSong = null;
       state.playingFromView = null;
       state.isPlaying = false;
@@ -1033,7 +1546,13 @@
       if (playId !== _playId) return;
       _isTransitioning = false;
       console.error('Play error:', err);
-      showToast('Failed to play audio', 'error');
+      showToast({
+        type: 'error',
+        icon: 'music',
+        eyebrow: 'Playback error',
+        title: 'Failed to play audio',
+        detail: song?.title
+      });
     });
 
     initVisualizer();
@@ -1086,7 +1605,13 @@
   function playPlaylist(playlistId) {
     const pl = state.playlists.find(p => p.id === playlistId);
     if (!pl || pl.songs.length === 0) {
-      showToast('Playlist is empty', 'info');
+      showToast({
+        type: 'info',
+        icon: 'playlist',
+        eyebrow: 'Nothing to play',
+        title: 'Playlist is empty',
+        detail: pl?.name
+      });
       return;
     }
     state.currentView = playlistId;
@@ -1096,23 +1621,63 @@
     if (firstSong) playSong(firstSong);
   }
 
+  function currentViewHasSong(song) {
+    if (!song) return false;
+    if (state.currentView === 'all') return state.songs.some(s => s.id === song.id);
+
+    const pl = state.playlists.find(p => p.id === state.currentView);
+    return Boolean(pl?.songs.includes(song.id));
+  }
+
   async function exportPlaylist(pl) {
-    showToast(`Exporting "${pl.name}"...`, 'info');
+    showToast({
+      type: 'info',
+      icon: 'export',
+      eyebrow: 'Exporting playlist',
+      title: pl.name,
+      detail: 'Copying songs…'
+    });
     try {
       const result = await window.api.exportPlaylist(pl.id);
       if (!result.success) {
-        if (result.error !== 'Cancelled') showToast(result.error, 'error');
+        if (result.error !== 'Cancelled') {
+          showToast({
+            type: 'error',
+            icon: 'export',
+            eyebrow: 'Export failed',
+            title: pl.name,
+            detail: result.error
+          });
+        }
         return;
       }
-      let msg = `Exported ${result.copied} songs to folder`;
-      if (result.failed > 0) msg += ` (${result.failed} failed)`;
-      showToast(msg, 'success');
+      let summary = `${result.copied} songs copied`;
+      if (result.failed > 0) summary += `, ${result.failed} failed`;
+      showToast({
+        type: 'success',
+        icon: 'export',
+        eyebrow: 'Export complete',
+        title: pl.name,
+        detail: summary
+      });
     } catch (err) {
-      showToast('Export failed: ' + (err.message || err), 'error');
+      showToast({
+        type: 'error',
+        icon: 'export',
+        eyebrow: 'Export failed',
+        title: pl.name,
+        detail: err.message || String(err)
+      });
     }
   }
 
   function togglePlay() {
+    if (nextSongTimer) {
+      clearNextSongTimer();
+      playNext();
+      return;
+    }
+
     // If no song loaded, start playing from the current view
     if (!state.currentSong) {
       if (state.currentView === 'all') {
@@ -1125,14 +1690,25 @@
     if (state.isPlaying) {
       audio.pause();
       state.isPlaying = false;
+      dom.playerThumbnail.classList.add('paused');
+      dom.btnPlay.classList.remove('is-playing');
+      document.body.classList.remove('audio-playing');
     } else {
+      if (currentViewHasSong(state.currentSong)) {
+        state.playingFromView = state.currentView;
+      }
       audio.play();
       state.isPlaying = true;
+      dom.playerThumbnail.classList.remove('paused');
+      dom.btnPlay.classList.add('is-playing');
+      document.body.classList.add('audio-playing');
     }
     updatePlayerUI();
+    renderSongList();
   }
 
   function playNext() {
+    clearNextSongTimer();
     if (state.currentQueue.length === 0) return;
 
     if (state.repeat === 'one') {
@@ -1152,6 +1728,7 @@
   }
 
   function playPrev() {
+    clearNextSongTimer();
     if (state.currentQueue.length === 0) return;
 
     // If more than 3 seconds into song, restart it
@@ -1360,7 +1937,7 @@
 
   audio.addEventListener('ended', () => {
     if (_isTransitioning) return;
-    playNext();
+    scheduleNextSong();
   });
 
   audio.addEventListener('play', () => {
@@ -1391,7 +1968,13 @@
     updatePlayerUI();
     dom.btnPlay.classList.remove('is-playing');
     document.body.classList.remove('audio-playing');
-    showToast('Audio file not found or corrupted', 'error');
+    showToast({
+      type: 'error',
+      icon: 'music',
+      eyebrow: 'Playback error',
+      title: 'Audio file not found or corrupted',
+      detail: state.currentSong?.title
+    });
   });
 
   // ── Visualizer ──────────────────────────────────────────────────
@@ -1445,9 +2028,9 @@
         const barHeight = value * height * 0.8;
 
         const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-        gradient.addColorStop(0, 'rgba(255, 45, 120, 0.85)');
-        gradient.addColorStop(0.5, 'rgba(168, 85, 247, 0.65)');
-        gradient.addColorStop(1, 'rgba(255, 92, 154, 0.55)');
+        gradient.addColorStop(0, 'rgba(255, 45, 120, 0.9)');
+        gradient.addColorStop(0.55, 'rgba(168, 85, 247, 0.68)');
+        gradient.addColorStop(1, 'rgba(255, 138, 42, 0.58)');
 
         ctx.fillStyle = gradient;
         ctx.fillRect(
@@ -1458,7 +2041,7 @@
         );
 
         // Glow effect
-        ctx.shadowColor = 'rgba(255, 45, 120, 0.35)';
+        ctx.shadowColor = 'rgba(255, 45, 120, 0.36)';
         ctx.shadowBlur = 4;
       }
 
@@ -1546,7 +2129,6 @@
     dom.settingMiniPlayer.addEventListener('change', () => {
       window.api.saveSettings({ miniPlayerOnMinimize: dom.settingMiniPlayer.checked });
     });
-
     // Sidebar toggle
     dom.btnToggleSidebar.addEventListener('click', () => {
       dom.sidebar.classList.toggle('collapsed');

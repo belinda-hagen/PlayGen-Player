@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "npx electron-packager . PlayGen --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/icon.ico --ignore=\"dist|.git|.gitignore\" --asar --extra-resource=assets/bin",
+    "build": "npx electron-packager . PlayGen --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/playgen-icon.ico --ignore=\"dist|.git|.gitignore\" --asar --extra-resource=assets/bin",
     "dist": "electron-builder --win"
   },
   "keywords": [
@@ -34,14 +34,14 @@
       "target": [
         "nsis"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/playgen-icon.ico"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "installerIcon": "assets/playgen-icon.ico",
+      "uninstallerIcon": "assets/playgen-icon.ico"
     }
   },
   "devDependencies": {

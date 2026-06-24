@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" alt="PlayGen Logo" width="140" />
+  <img src="assets/playgen-icon.png" alt="PlayGen Logo" width="140" />
 </p>
 
 <h1 align="center">PlayGen Player</h1>
@@ -28,15 +28,20 @@
 
 | Feature | Description |
 |---|---|
-| **Download from YouTube** | Paste a link, get high-quality MP3 (320 kbps) |
-| **Playlist system** | Create, rename, reorder & delete playlists with drag-and-drop |
+| **Download from YouTube** | Paste a video link and get a high-quality MP3 |
+| **Download whole playlists** | Paste a YouTube playlist link to grab every track at once |
+| **Playlist system** | Create, rename, reorder (drag-and-drop) & delete playlists |
+| **Next-song delay** | Set a per-playlist gap between tracks (Instant → 30 seconds) |
+| **Export to folder** | Copy a whole playlist's MP3s to any folder on your PC |
 | **Full music player** | Play/pause, skip, shuffle, repeat, seek & volume |
+| **Adaptive cover art** | The now-playing banner tints itself to match the album art |
 | **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
-| **Mini player** | Compact always-on-top player when minimized |
+| **Mini player** | Compact always-on-top player when minimized (toggle in settings) |
 | **Search** | Instantly filter songs across your library |
+| **Smart paste** | Paste a YouTube link anywhere to drop it into the download bar |
 | **Session restore** | Picks up right where you left off |
 
-</details>
+> **Tip:** Right-click a playlist to **rename** it, set its **next-song delay**, or **export** all its tracks to a folder. Inside a playlist a song is only *removed* from that playlist — permanent deletion lives in the **Downloads** view.
 
 ## Prerequisites
 
@@ -49,8 +54,8 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/belinda-hagen/PlayGen.git
-cd PlayGen
+git clone https://github.com/belinda-hagen/PlayGen-Player.git
+cd PlayGen-Player
 npm install
 npm start
 ```
@@ -66,6 +71,7 @@ npm start
 | `S` | Toggle shuffle |
 | `R` | Cycle repeat |
 | `Ctrl+F` | Focus search |
+| `Ctrl+V` | Paste a copied YouTube link into the download bar |
 
 ## Disclaimer
 

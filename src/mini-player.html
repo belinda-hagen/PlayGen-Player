@@ -5,41 +5,49 @@
   <title>PlayGen Mini</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     body {
       width: 320px;
       height: 80px;
       overflow: hidden;
-      background: rgba(0, 0, 0, 0.96);
-      color: #f5f5ff;
-      font-family: 'Inter', sans-serif;
+      background: #0b0b0b;
+      color: #fff;
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
       -webkit-app-region: drag;
-      border-radius: 0;
-      border: 1px solid rgba(255, 45, 120, 0.22);
-      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .mini-player {
-      display: flex;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
       align-items: center;
       gap: 12px;
       padding: 10px 12px;
-      height: 100%;
+      background:
+        linear-gradient(145deg, rgba(255, 45, 120, 0.16), rgba(168, 85, 247, 0.08) 48%, rgba(255, 138, 42, 0.1)),
+        #0b0b0b;
     }
 
     .mini-thumb {
       width: 56px;
       height: 56px;
-      border-radius: 8px;
-      overflow: hidden;
-      flex-shrink: 0;
-      background: #111111;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #242424;
+      color: #727272;
+      flex-shrink: 0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
     }
 
     .mini-thumb img {
@@ -49,36 +57,43 @@
       display: none;
     }
 
-    .mini-thumb img.visible { display: block; }
+    .mini-thumb img.visible {
+      display: block;
+    }
 
-    .mini-thumb svg { opacity: 0.3; }
+    .mini-thumb img.visible + svg {
+      display: none;
+    }
 
     .mini-info {
-      flex: 1;
       min-width: 0;
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
 
-    .mini-title {
-      font-size: 13px;
-      font-weight: 600;
-      white-space: nowrap;
+    .mini-title,
+    .mini-channel {
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
     }
 
     .mini-channel {
       font-size: 11px;
-      color: #b8b8d8;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      color: #b3b3b3;
+      font-weight: 600;
     }
 
     .mini-controls {
       display: flex;
+      align-items: center;
       gap: 4px;
       flex-shrink: 0;
       -webkit-app-region: no-drag;
@@ -87,65 +102,63 @@
     .mini-btn {
       width: 28px;
       height: 28px;
-      border: none;
-      background: none;
-      color: #b8b8d8;
-      cursor: pointer;
+      border: 0;
       border-radius: 50%;
-      display: flex;
+      background: transparent;
+      color: #b3b3b3;
+      cursor: pointer;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.15s ease;
+      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
     }
 
     .mini-btn:hover {
-      color: #f5f5ff;
-      background: rgba(255,255,255,0.06);
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
     }
 
     .mini-btn.play-btn {
-      width: 34px;
-      height: 34px;
-      background: linear-gradient(135deg, #ff2d78, #a855f7);
-      color: white;
-      box-shadow: 0 2px 12px rgba(255, 45, 120, 0.35);
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #ff2d78 0%, #a855f7 52%, #ff8a2a 100%);
+      color: #fff;
     }
 
     .mini-btn.play-btn:hover {
-      transform: scale(1.1);
+      transform: scale(1.06);
+      filter: brightness(1.08);
     }
 
     .mini-btn.close-btn {
-      -webkit-app-region: no-drag;
       position: absolute;
       top: 4px;
       right: 4px;
       width: 18px;
       height: 18px;
       font-size: 10px;
-      color: #7070a0;
+      -webkit-app-region: no-drag;
     }
 
     .mini-btn.close-btn:hover {
-      color: #ff4466;
-      background: rgba(255, 68, 102, 0.1);
+      color: #fff;
+      background: #f15e6c;
     }
 
     .mini-progress {
       position: absolute;
-      bottom: 0;
       left: 0;
       right: 0;
+      bottom: 0;
       height: 3px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 0 0 12px 12px;
+      background: rgba(255, 255, 255, 0.14);
       overflow: hidden;
     }
 
     .mini-progress-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #ff2d78, #a855f7, #ff5c9a);
+      background: linear-gradient(90deg, #ff2d78 0%, #a855f7 52%, #ff8a2a 100%);
       transition: width 0.5s linear;
     }
   </style>
@@ -181,7 +194,7 @@
         </svg>
       </button>
     </div>
-    <button class="mini-btn close-btn" id="btn-close" title="Close mini player">✕</button>
+    <button class="mini-btn close-btn" id="btn-close" title="Close mini player">x</button>
   </div>
   <div class="mini-progress">
     <div class="mini-progress-fill" id="mini-progress-fill"></div>
@@ -198,7 +211,6 @@
       progressFill: document.getElementById('mini-progress-fill'),
     };
 
-    // Receive state updates from main process
     ipcRenderer.on('mini-player-update', (event, data) => {
       if (data.title) els.title.textContent = data.title;
       if (data.channel !== undefined) els.channel.textContent = data.channel;
@@ -228,8 +240,6 @@
     document.getElementById('btn-close').addEventListener('click', () => {
       ipcRenderer.send('mini-player-command', 'close');
     });
-
-    // Double-click to restore main window
     document.body.addEventListener('dblclick', () => {
       ipcRenderer.send('mini-player-command', 'restore');
     });
