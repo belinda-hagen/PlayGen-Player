@@ -21,7 +21,10 @@
     searchQuery: '',
     isDownloading: false,
     cancelDownload: false,
-    dragSongId: null
+    dragSongId: null,
+    dragSongIds: null,            // all song ids being dragged (multi-select)
+    selectedSongIds: new Set(),   // multi-selected songs in the current view
+    lastSelectedSongId: null      // anchor for shift-range selection
   };
 
   const NEXT_DELAY_OPTIONS = [
@@ -89,6 +92,7 @@
     playerThumbImg: $('#player-thumb-img'),
     playerTitle: $('#player-title'),
     playerChannel: $('#player-channel'),
+    btnClearTrack: $('#btn-clear-track'),
     visualizerCanvas: $('#visualizer-canvas'),
     btnShuffle: $('#btn-shuffle'),
     btnPrev: $('#btn-prev'),
@@ -137,6 +141,15 @@
     // Loading screen
     loadingScreen: $('#loading-screen')
   };
+
+  // Fallback cover for songs without artwork (e.g. imported local files).
+  const THUMB_PLACEHOLDER = `
+    <div class="song-thumb-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+      </svg>
+    </div>
+  `;
 
   // ── Utility ─────────────────────────────────────────────────────
   function formatTime(seconds) {
@@ -589,14 +602,36 @@
       item.addEventListener('drop', async (e) => {
         e.preventDefault();
         item.classList.remove('drag-over');
-        const songId = e.dataTransfer.getData('text/song-id');
-        if (songId) {
-          await window.api.addToPlaylist(pl.id, songId);
+
+        // Files dropped from the OS: import them straight into this playlist.
+        // Flag it so the bubbling window handler skips a second library import
+        // (it still runs to reset the drag state).
+        if (isFileDrag(e)) {
+          _fileDropHandled = true;
+          await importLocalFiles(getDroppedFilePaths(e.dataTransfer), pl.id);
+          return;
+        }
+
+        const songIds = readSongIds(e.dataTransfer);
+        if (songIds.length) {
+          for (const id of songIds) {
+            await window.api.addToPlaylist(pl.id, id);
+          }
+          clearSongSelection();
           state.playlists = await window.api.getPlaylists();
           renderSidebar();
           if (state.currentView === pl.id) renderSongList();
-          const song = state.songs.find(s => s.id === songId);
-          showPlaylistAddToast(song, pl);
+          if (songIds.length === 1) {
+            showPlaylistAddToast(state.songs.find(s => s.id === songIds[0]), pl);
+          } else {
+            showToast({
+              type: 'success',
+              icon: 'playlist',
+              eyebrow: 'Added to playlist',
+              title: pl.name,
+              detail: `${songIds.length} songs added`
+            });
+          }
         }
       });
 
@@ -796,11 +831,11 @@
     const playingSongInView = state.currentSong && songs.find(s => s.id === state.currentSong.id);
     const heroSong = playingSongInView || (songs.length > 0 ? songs[0] : null);
     if (heroBg) {
-      heroBg.style.backgroundImage = heroSong ? `url("${heroSong.thumbnail}")` : '';
+      heroBg.style.backgroundImage = heroSong && heroSong.thumbnail ? `url("${heroSong.thumbnail}")` : '';
     }
-    applyHeroColor(heroSong ? heroSong.thumbnail : null);
+    applyHeroColor(heroSong && heroSong.thumbnail ? heroSong.thumbnail : null);
     if (heroThumb) {
-      if (heroSong) {
+      if (heroSong && heroSong.thumbnail) {
         heroThumb.innerHTML = `<img src="${escapeHtml(heroSong.thumbnail)}" alt="">`;
       } else {
         heroThumb.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
@@ -869,11 +904,80 @@
     }
   }
 
+  // ── Multi-select ────────────────────────────────────────────────
+  // Song ids currently displayed, in visual order — drives shift-range
+  // selection and keeps a multi-drag in the order the user sees.
+  function getDisplayedSongIds() {
+    return [...dom.songList.querySelectorAll('.song-item')].map(el => el.dataset.songId);
+  }
+
+  function updateSelectionUI() {
+    dom.songList.querySelectorAll('.song-item').forEach(el => {
+      el.classList.toggle('selected', state.selectedSongIds.has(el.dataset.songId));
+    });
+  }
+
+  function clearSongSelection() {
+    if (state.selectedSongIds.size === 0) return;
+    state.selectedSongIds.clear();
+    state.lastSelectedSongId = null;
+    updateSelectionUI();
+  }
+
+  function toggleSongSelection(id) {
+    if (state.selectedSongIds.has(id)) state.selectedSongIds.delete(id);
+    else state.selectedSongIds.add(id);
+    state.lastSelectedSongId = id;
+    updateSelectionUI();
+  }
+
+  function selectSongRange(id) {
+    const ids = getDisplayedSongIds();
+    const anchor = (state.lastSelectedSongId && ids.includes(state.lastSelectedSongId))
+      ? state.lastSelectedSongId
+      : id;
+    const a = ids.indexOf(anchor);
+    const b = ids.indexOf(id);
+    if (a === -1 || b === -1) {
+      state.selectedSongIds.add(id);
+    } else {
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      for (let i = lo; i <= hi; i++) state.selectedSongIds.add(ids[i]);
+    }
+    state.lastSelectedSongId = id;
+    updateSelectionUI();
+  }
+
+  // Read dragged song ids from a drop event (multi-select aware, with a
+  // single-id fallback for older drag sources).
+  function readSongIds(dataTransfer) {
+    const multi = dataTransfer.getData('text/song-ids');
+    if (multi) {
+      try {
+        const arr = JSON.parse(multi);
+        if (Array.isArray(arr) && arr.length) return arr;
+      } catch { /* fall through */ }
+    }
+    const single = dataTransfer.getData('text/song-id');
+    return single ? [single] : [];
+  }
+
+  // A small "N songs" chip used as the drag image for a multi-song drag.
+  function makeMultiDragImage(count) {
+    const chip = document.createElement('div');
+    chip.className = 'multi-drag-chip';
+    chip.textContent = `${count} songs`;
+    document.body.appendChild(chip);
+    // Remove on the next tick — the browser snapshots it synchronously.
+    setTimeout(() => chip.remove(), 0);
+    return chip;
+  }
+
   function createSongItem(song, index, isPlaylistView) {
     const item = document.createElement('div');
     // Only show 'playing' class if this is the view where playback started
     const isPlayingHere = state.currentSong?.id === song.id && state.playingFromView === state.currentView;
-    item.className = `song-item ${isPlayingHere ? 'playing' : ''}`;
+    item.className = `song-item ${isPlayingHere ? 'playing' : ''} ${state.selectedSongIds.has(song.id) ? 'selected' : ''}`;
     item.dataset.songId = song.id;
     item.draggable = true;
 
@@ -891,7 +995,9 @@
         </div>
       </div>
       <div class="song-thumb">
-        <img src="${escapeHtml(song.thumbnail)}" alt="" loading="lazy">
+        ${song.thumbnail
+          ? `<img src="${escapeHtml(song.thumbnail)}" alt="" loading="lazy">`
+          : THUMB_PLACEHOLDER}
       </div>
       <div class="song-info">
         <div class="song-title">${escapeHtml(song.title)}</div>
@@ -920,9 +1026,18 @@
       </div>
     `;
 
-    // Click to play
+    // Click to play, or Ctrl/Shift+click to build a multi-selection for dragging
     item.addEventListener('click', (e) => {
       if (e.target.closest('.song-action-btn')) return;
+      if (e.ctrlKey || e.metaKey) {
+        toggleSongSelection(song.id);
+        return;
+      }
+      if (e.shiftKey) {
+        selectSongRange(song.id);
+        return;
+      }
+      clearSongSelection();
       playSong(song);
     });
 
@@ -964,15 +1079,35 @@
 
     // Drag start
     item.addEventListener('dragstart', (e) => {
+      // Dragging a song that's part of a multi-selection drags the whole set
+      // (in display order). Dragging an unselected song drags just that one.
+      let ids;
+      if (state.selectedSongIds.has(song.id) && state.selectedSongIds.size > 1) {
+        ids = getDisplayedSongIds().filter(id => state.selectedSongIds.has(id));
+      } else {
+        ids = [song.id];
+      }
+
       state.dragSongId = song.id;
-      e.dataTransfer.setData('text/song-id', song.id);
+      state.dragSongIds = ids;
+      e.dataTransfer.setData('text/song-id', song.id);     // primary / legacy
+      e.dataTransfer.setData('text/song-ids', JSON.stringify(ids));
       e.dataTransfer.effectAllowed = 'copyMove';
-      item.classList.add('dragging');
+
+      if (ids.length > 1) {
+        e.dataTransfer.setDragImage(makeMultiDragImage(ids.length), -12, -12);
+        ids.forEach(id => {
+          dom.songList.querySelector(`.song-item[data-song-id="${id}"]`)?.classList.add('dragging');
+        });
+      } else {
+        item.classList.add('dragging');
+      }
     });
 
     item.addEventListener('dragend', () => {
-      item.classList.remove('dragging');
       state.dragSongId = null;
+      state.dragSongIds = null;
+      dom.songList.querySelectorAll('.song-item.dragging').forEach(el => el.classList.remove('dragging'));
       $$('.drag-over-above, .drag-over-below').forEach(el => {
         el.classList.remove('drag-over-above', 'drag-over-below');
       });
@@ -998,28 +1133,24 @@
 
       item.addEventListener('drop', async (e) => {
         e.preventDefault();
-        const draggedId = e.dataTransfer.getData('text/song-id');
+        const draggedIds = readSongIds(e.dataTransfer);
         const targetId = song.id;
         item.classList.remove('drag-over-above', 'drag-over-below');
 
-        if (draggedId && draggedId !== targetId) {
+        if (draggedIds.length && !draggedIds.includes(targetId)) {
           const pl = state.playlists.find(p => p.id === state.currentView);
           if (pl) {
             const rect = item.getBoundingClientRect();
             const midY = rect.top + rect.height / 2;
             const insertBefore = e.clientY < midY;
 
-            let songIds = [...pl.songs];
-            // If dragged song is already in playlist, remove it first
-            const fromIdx = songIds.indexOf(draggedId);
-            if (fromIdx !== -1) songIds.splice(fromIdx, 1);
-
-            // Insert at new position
+            // Pull the dragged songs out, then re-insert the block at the target.
+            let songIds = pl.songs.filter(id => !draggedIds.includes(id));
             const targetIdx = songIds.indexOf(targetId);
             if (targetIdx !== -1) {
-              songIds.splice(insertBefore ? targetIdx : targetIdx + 1, 0, draggedId);
+              songIds.splice(insertBefore ? targetIdx : targetIdx + 1, 0, ...draggedIds);
             } else {
-              songIds.push(draggedId);
+              songIds.push(...draggedIds);
             }
 
             await window.api.reorderPlaylist(state.currentView, songIds);
@@ -1120,6 +1251,8 @@
   // ── View Switching ──────────────────────────────────────────────
   function switchView(viewId) {
     state.currentView = viewId;
+    state.selectedSongIds.clear();
+    state.lastSelectedSongId = null;
     highlightActiveNav();
 
     // Trigger view transition animation
@@ -1351,6 +1484,179 @@
     }
   }
 
+  // ── Import local files (drag & drop) ────────────────────────────
+  // Set by a playlist drop target so the bubbling window handler cleans up
+  // the drag state but skips the duplicate library import.
+  let _fileDropHandled = false;
+
+  function isFileDrag(e) {
+    // OS file drags expose a 'Files' type; internal song drags carry 'text/song-id'.
+    return Array.from(e.dataTransfer?.types || []).includes('Files');
+  }
+
+  function getDroppedFilePaths(dataTransfer) {
+    const paths = [];
+    const files = dataTransfer?.files || [];
+    for (let i = 0; i < files.length; i++) {
+      // Electron exposes the absolute path on dropped File objects.
+      if (files[i].path) paths.push(files[i].path);
+    }
+    return paths;
+  }
+
+  // Import dropped files into the library. When playlistId is given, the
+  // imported songs are also added to that playlist.
+  async function importLocalFiles(paths, playlistId = null) {
+    if (!paths || paths.length === 0) return;
+
+    dom.downloadProgressContainer.classList.add('active');
+    dom.downloadProgressTitle.textContent = paths.length > 1
+      ? `Importing ${paths.length} files…`
+      : 'Importing file…';
+    dom.downloadProgressPercent.textContent = '';
+    dom.downloadProgressFill.style.width = '40%';
+
+    try {
+      const result = await window.api.importFiles(paths);
+      const imported = result?.imported || [];
+      const failed = result?.failed || [];
+
+      if (imported.length > 0) {
+        state.songs = await window.api.getSongs();
+
+        if (playlistId) {
+          // Add every freshly imported song to the target playlist.
+          for (const song of imported) {
+            await window.api.addToPlaylist(playlistId, song.id);
+          }
+          state.playlists = await window.api.getPlaylists();
+          const targetPlaylist = state.playlists.find(p => p.id === playlistId);
+          renderSidebar();
+          // Reveal the playlist so the additions are visible.
+          if (state.currentView === playlistId) {
+            renderSongList();
+          } else {
+            switchView(playlistId);
+          }
+
+          showToast({
+            type: 'success',
+            icon: 'playlist',
+            eyebrow: 'Added to playlist',
+            title: targetPlaylist?.name || 'Playlist',
+            detail: imported.length === 1 ? imported[0].title : `${imported.length} songs added`,
+            thumbnail: imported.length === 1 ? (imported[0].thumbnail || undefined) : undefined
+          });
+        } else {
+          // Surface the new tracks in the library so the import is visible.
+          if (state.currentView !== 'all') {
+            switchView('all');
+          } else {
+            renderSongList();
+          }
+
+          if (imported.length === 1) {
+            showToast({
+              type: 'success',
+              icon: 'music',
+              eyebrow: 'Imported',
+              title: imported[0].title,
+              detail: imported[0].channel || 'Added to your library',
+              thumbnail: imported[0].thumbnail || undefined
+            });
+          } else {
+            showToast({
+              type: 'success',
+              icon: 'music',
+              eyebrow: 'Imported',
+              title: `${imported.length} songs added`,
+              detail: 'Added to your library'
+            });
+          }
+        }
+      }
+
+      if (failed.length > 0) {
+        if (imported.length === 0) {
+          const single = failed.length === 1;
+          showToast({
+            type: 'error',
+            icon: 'music',
+            eyebrow: 'Import failed',
+            title: single ? (failed[0].error || 'Could not import') : `${failed.length} files skipped`,
+            detail: single ? (paths[0]?.split(/[\\/]/).pop()) : 'Unsupported or duplicate files'
+          });
+        } else {
+          showToast({
+            type: 'info',
+            icon: 'music',
+            eyebrow: 'Some files skipped',
+            title: `${imported.length} imported, ${failed.length} skipped`,
+            detail: 'Unsupported or duplicate files'
+          });
+        }
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        icon: 'music',
+        eyebrow: 'Import error',
+        title: 'Could not import files',
+        detail: err.message || String(err)
+      });
+      console.error('Import exception:', err);
+    } finally {
+      dom.downloadProgressFill.style.width = '100%';
+      setTimeout(() => dom.downloadProgressContainer.classList.remove('active'), 1200);
+    }
+  }
+
+  function setupFileDrop() {
+    const overlay = document.getElementById('drop-overlay');
+    let dragDepth = 0;
+
+    function setDragActive(active) {
+      // 'file-dragging' lifts the sidebar above the overlay so playlists
+      // stay visible and usable as drop targets.
+      document.body.classList.toggle('file-dragging', active);
+      overlay?.classList.toggle('visible', active);
+    }
+
+    window.addEventListener('dragenter', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      dragDepth++;
+      setDragActive(true);
+    });
+
+    window.addEventListener('dragover', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      if (!isFileDrag(e)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) setDragActive(false);
+    });
+
+    // Fallback: a file dropped anywhere except a playlist lands in the library.
+    // Playlist drop targets handle their own drop and stop propagation.
+    window.addEventListener('drop', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      dragDepth = 0;
+      setDragActive(false);
+      // A playlist target already imported these files — just reset and bail.
+      if (_fileDropHandled) {
+        _fileDropHandled = false;
+        return;
+      }
+      importLocalFiles(getDroppedFilePaths(e.dataTransfer));
+    });
+  }
+
   // ── Playlist Management ─────────────────────────────────────────
   async function createPlaylist() {
     const name = await showModal('New Playlist', 'Enter playlist name...', '', 'Create');
@@ -1486,6 +1792,34 @@
     document.body.classList.remove('audio-playing');
     updatePlayerUI();
     updatePlayerSongInfo();
+  }
+
+  // Clear the now-playing track from the player bar entirely: stop playback,
+  // reset the transport, drop the "Playing" marker in the list, and forget it
+  // so it isn't restored on next launch.
+  function clearCurrentTrack() {
+    stopCurrentPlayback();
+    audio.removeAttribute('src');
+    audio.load();
+    dom.progressFill.style.width = '0%';
+    dom.progressThumb.style.left = '0%';
+    dom.timeCurrent.textContent = '0:00';
+    dom.timeTotal.textContent = '0:00';
+    renderSongList();
+    saveSession();
+  }
+
+  // Reload songs/playlists from disk and re-render. Used when the downloads
+  // folder changes outside the app (e.g. a file deleted manually).
+  async function refreshLibrary() {
+    state.songs = await window.api.getSongs();
+    state.playlists = await window.api.getPlaylists();
+    // If the track sitting in the player no longer exists, clear it.
+    if (state.currentSong && !state.songs.some(s => s.id === state.currentSong.id)) {
+      clearCurrentTrack();
+    }
+    renderSidebar();
+    renderSongList();
   }
 
   function playSong(song) {
@@ -1785,14 +2119,21 @@
     if (state.currentSong) {
       dom.playerTitle.textContent = state.currentSong.title;
       dom.playerChannel.textContent = state.currentSong.channel || '';
-      dom.playerThumbImg.src = state.currentSong.thumbnail;
-      dom.playerThumbImg.classList.add('visible');
+      if (state.currentSong.thumbnail) {
+        dom.playerThumbImg.src = state.currentSong.thumbnail;
+        dom.playerThumbImg.classList.add('visible');
+      } else {
+        dom.playerThumbImg.classList.remove('visible');
+        dom.playerThumbImg.removeAttribute('src');
+      }
       dom.playerThumbnail.classList.add('active');
+      dom.btnClearTrack?.classList.add('visible');
     } else {
       dom.playerTitle.textContent = 'No song playing';
       dom.playerChannel.textContent = '';
       dom.playerThumbImg.classList.remove('visible');
       dom.playerThumbnail.classList.remove('active');
+      dom.btnClearTrack?.classList.remove('visible');
     }
     sendMiniPlayerState();
   }
@@ -2170,6 +2511,7 @@
     dom.btnPrev.addEventListener('click', playPrev);
     dom.btnShuffle.addEventListener('click', toggleShuffle);
     dom.btnRepeat.addEventListener('click', toggleRepeat);
+    dom.btnClearTrack.addEventListener('click', clearCurrentTrack);
 
     // Volume mute toggle
     let volumeBeforeMute = state.volume;
@@ -2188,6 +2530,24 @@
     // Progress & volume bars
     setupProgressBar();
     setupVolumeBar();
+
+    // Drag & drop local audio files
+    setupFileDrop();
+
+    // Downloads folder changed outside the app (file deleted manually).
+    window.api.onLibraryChanged(() => refreshLibrary());
+
+    // Safety net: re-check on window focus in case a deletion happened while
+    // the app was in the background and the folder watcher missed it.
+    window.addEventListener('focus', async () => {
+      const count = (await window.api.getSongs()).length;
+      if (count !== state.songs.length) refreshLibrary();
+    });
+
+    // Click empty space in the song list to clear the multi-selection
+    dom.songList.addEventListener('click', (e) => {
+      if (!e.target.closest('.song-item')) clearSongSelection();
+    });
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -2238,6 +2598,20 @@
             e.preventDefault();
             dom.searchInput.focus();
           }
+          break;
+        case 'KeyA':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const ids = getDisplayedSongIds();
+            if (ids.length) {
+              ids.forEach(id => state.selectedSongIds.add(id));
+              state.lastSelectedSongId = ids[ids.length - 1];
+              updateSelectionUI();
+            }
+          }
+          break;
+        case 'Escape':
+          clearSongSelection();
           break;
       }
     });

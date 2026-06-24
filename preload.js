@@ -17,12 +17,16 @@ contextBridge.exposeInMainWorld('api', {
   },
   getDownloadsPath: () => ipcRenderer.invoke('get-downloads-path'),
   openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
+  importFiles: (filePaths) => ipcRenderer.invoke('import-local-files', filePaths),
   exportPlaylist: (playlistId) => ipcRenderer.invoke('export-playlist', { playlistId }),
 
   // Songs
   getSongs: () => ipcRenderer.invoke('get-songs'),
   deleteSong: (songId) => ipcRenderer.invoke('delete-song', songId),
   getSongPath: (songId) => ipcRenderer.invoke('get-song-path', songId),
+  onLibraryChanged: (callback) => {
+    ipcRenderer.on('library-changed', (event, data) => callback(data));
+  },
 
   // Playlists
   getPlaylists: () => ipcRenderer.invoke('get-playlists'),

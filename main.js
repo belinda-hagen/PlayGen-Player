@@ -42,6 +42,30 @@ function normalizePlaylists() {
 
 normalizePlaylists();
 
+// Drop any songs whose underlying file no longer exists (e.g. deleted from the
+// folder outside the app). Also strips them from playlists and cleans up
+// orphaned cover art. Returns the removed song objects.
+function pruneMissingSongs() {
+  const removed = [];
+  db.songs = (db.songs || []).filter(s => {
+    if (fs.existsSync(s.filePath)) return true;
+    removed.push(s);
+    return false;
+  });
+
+  if (removed.length) {
+    const removedIds = new Set(removed.map(s => s.id));
+    db.playlists.forEach(p => {
+      p.songs = (p.songs || []).filter(id => !removedIds.has(id));
+    });
+    removed.forEach(s => {
+      if (s.coverPath) { try { fs.unlinkSync(s.coverPath); } catch { /* ignore */ } }
+    });
+    saveDB(db);
+  }
+  return removed;
+}
+
 // ── Check Dependencies & Resolve Paths ────────────────────────────
 let ytdlpPath = 'yt-dlp';
 let ffmpegPath = 'ffmpeg';
@@ -227,14 +251,45 @@ function destroyMiniPlayer() {
   miniPlayerWindow = null;
 }
 
+// ── Watch downloads folder for external changes ───────────────────
+// If a file is deleted straight from the folder, prune it and tell the
+// renderer to refresh so it disappears from the library/playlists.
+let downloadsWatcher = null;
+let watchDebounceTimer = null;
+
+function startDownloadsWatcher() {
+  if (downloadsWatcher) return;
+  try {
+    downloadsWatcher = fs.watch(downloadsPath, () => {
+      clearTimeout(watchDebounceTimer);
+      watchDebounceTimer = setTimeout(() => {
+        const removed = pruneMissingSongs();
+        if (removed.length && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('library-changed', { removedIds: removed.map(s => s.id) });
+        }
+      }, 400);
+    });
+    downloadsWatcher.on('error', (err) => console.error('[PlayGen] Downloads watcher error:', err));
+  } catch (e) {
+    console.error('[PlayGen] Failed to watch downloads folder:', e);
+  }
+}
+
+function stopDownloadsWatcher() {
+  if (watchDebounceTimer) { clearTimeout(watchDebounceTimer); watchDebounceTimer = null; }
+  if (downloadsWatcher) { downloadsWatcher.close(); downloadsWatcher = null; }
+}
+
 app.whenReady().then(() => {
   createWindow();
+  startDownloadsWatcher();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
+  stopDownloadsWatcher();
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -464,11 +519,103 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
   });
 });
 
+// ── IPC: Import local audio files (drag & drop) ───────────────────
+const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.aac', '.flac', '.wav', '.ogg', '.opus', '.webm']);
+
+// Run ffmpeg and capture stderr (ffmpeg writes media info there).
+function runFfmpeg(args) {
+  return new Promise((resolve) => {
+    let stderr = '';
+    const proc = spawn(ffmpegPath, args, { windowsHide: true });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', () => resolve({ code: -1, stderr }));
+    proc.on('close', (code) => resolve({ code, stderr }));
+  });
+}
+
+// Read duration + embedded title/artist tags from the file's ffmpeg banner.
+// ffmpeg exits non-zero when no output file is given, but still prints the info.
+async function probeMetadata(filePath) {
+  const { stderr } = await runFfmpeg(['-i', filePath]);
+  let duration = 0;
+  const dm = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  if (dm) duration = (+dm[1]) * 3600 + (+dm[2]) * 60 + parseFloat(dm[3]);
+  const tm = stderr.match(/^\s*title\s*:\s*(.+?)\s*$/im);
+  const am = stderr.match(/^\s*(?:artist|album_artist)\s*:\s*(.+?)\s*$/im);
+  return {
+    duration: Math.round(duration),
+    title: tm ? tm[1].trim() : null,
+    artist: am ? am[1].trim() : null
+  };
+}
+
+// Extract embedded cover art (if any) to a jpg. Returns true on success.
+async function extractCover(filePath, coverPath) {
+  const { code } = await runFfmpeg(['-i', filePath, '-an', '-frames:v', '1', '-y', coverPath]);
+  if (code === 0 && fs.existsSync(coverPath) && fs.statSync(coverPath).size > 0) return true;
+  try { if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath); } catch { /* ignore */ }
+  return false;
+}
+
+ipcMain.handle('import-local-files', async (event, filePaths) => {
+  if (!Array.isArray(filePaths) || filePaths.length === 0) {
+    return { success: false, error: 'No files', imported: [], failed: [] };
+  }
+
+  const imported = [];
+  const failed = [];
+
+  for (const srcPath of filePaths) {
+    try {
+      if (!srcPath || !fs.existsSync(srcPath)) { failed.push({ srcPath, error: 'File not found' }); continue; }
+
+      const ext = path.extname(srcPath).toLowerCase();
+      if (!AUDIO_EXTS.has(ext)) { failed.push({ srcPath, error: 'Unsupported file type' }); continue; }
+
+      const stat = fs.statSync(srcPath);
+      const baseName = path.basename(srcPath, ext);
+
+      // Dedup identical re-drops by original name + byte size.
+      const importKey = `${path.basename(srcPath)}:${stat.size}`;
+      if (db.songs.some(s => s.importKey === importKey)) { failed.push({ srcPath, error: 'Already imported' }); continue; }
+
+      const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      const destPath = path.join(downloadsPath, `${id}${ext}`);
+      fs.copyFileSync(srcPath, destPath);
+
+      const meta = await probeMetadata(destPath);
+      const coverPath = path.join(downloadsPath, `${id}.jpg`);
+      const hasCover = await extractCover(destPath, coverPath);
+
+      const song = {
+        id,
+        title: meta.title || baseName,
+        thumbnail: hasCover ? `file://${coverPath}` : '',
+        coverPath: hasCover ? coverPath : null,
+        duration: meta.duration || 0,
+        channel: meta.artist || 'Local file',
+        filePath: destPath,
+        source: 'local',
+        importKey,
+        dateAdded: new Date().toISOString()
+      };
+
+      db.songs.unshift(song);
+      imported.push(song);
+    } catch (err) {
+      console.error('[PlayGen] Import failed for', srcPath, err);
+      failed.push({ srcPath, error: err.message });
+    }
+  }
+
+  if (imported.length) saveDB(db);
+  return { success: true, imported, failed };
+});
+
 // ── IPC: Songs ────────────────────────────────────────────────────
 ipcMain.handle('get-songs', () => {
-  // Verify files still exist
-  db.songs = db.songs.filter(s => fs.existsSync(s.filePath));
-  saveDB(db);
+  // Verify files still exist (also cleans playlists + orphan covers)
+  pruneMissingSongs();
   return db.songs;
 });
 
@@ -476,6 +623,7 @@ ipcMain.handle('delete-song', (event, songId) => {
   const song = db.songs.find(s => s.id === songId);
   if (song) {
     try { fs.unlinkSync(song.filePath); } catch (e) { /* ignore */ }
+    if (song.coverPath) { try { fs.unlinkSync(song.coverPath); } catch (e) { /* ignore */ } }
     db.songs = db.songs.filter(s => s.id !== songId);
     // Remove from all playlists
     db.playlists.forEach(p => {

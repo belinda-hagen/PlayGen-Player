@@ -167,7 +167,7 @@
               </svg>
             </div>
             <h3 class="empty-title">No songs yet</h3>
-            <p class="empty-text">Paste a YouTube URL above to download your first track.</p>
+            <p class="empty-text">Paste a YouTube URL above, or drag &amp; drop audio files here to get started.</p>
           </div>
         </div>
 
@@ -197,6 +197,12 @@
           <div class="player-title" id="player-title">No song playing</div>
           <div class="player-channel" id="player-channel"></div>
         </div>
+        <button class="player-btn btn-clear-track" id="btn-clear-track" title="Remove from player" aria-label="Remove current track from player">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <div class="player-center">
@@ -307,6 +313,20 @@
   </div>
 
   <div class="toast-container" id="toast-container"></div>
+
+  <div class="drop-overlay" id="drop-overlay">
+    <div class="drop-overlay-card">
+      <div class="drop-overlay-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56">
+          <path d="M12 3v12"/>
+          <path d="m7 10 5 5 5-5"/>
+          <path d="M5 21h14"/>
+        </svg>
+      </div>
+      <h3 class="drop-overlay-title">Drop to import</h3>
+      <p class="drop-overlay-text">Drop on a playlist to add it there — or anywhere to add to your library</p>
+    </div>
+  </div>
 
   <script src="renderer.js"></script>
 </body>
