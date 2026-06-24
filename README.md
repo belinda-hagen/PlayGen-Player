@@ -38,8 +38,6 @@
 | **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
 | **Mini player** | Compact always-on-top player when minimized (toggle in settings) |
 | **Search** | Instantly filter songs across your library |
-| **Smart paste** | Paste a YouTube link anywhere to drop it into the download bar |
-| **Session restore** | Picks up right where you left off |
 
 > **Tip:** Right-click a playlist to **rename** it, set its **next-song delay**, or **export** all its tracks to a folder. Inside a playlist a song is only *removed* from that playlist — permanent deletion lives in the **Downloads** view.
 
