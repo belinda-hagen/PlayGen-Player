@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // Songs
   getSongs: () => ipcRenderer.invoke('get-songs'),
+  updateSong: (songId, updates) => ipcRenderer.invoke('update-song', { songId, updates }),
+  fetchCoverArt: (songId) => ipcRenderer.invoke('fetch-cover-art', { songId }),
   deleteSong: (songId) => ipcRenderer.invoke('delete-song', songId),
   getSongPath: (songId) => ipcRenderer.invoke('get-song-path', songId),
   onLibraryChanged: (callback) => {

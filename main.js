@@ -549,6 +549,22 @@ async function probeMetadata(filePath) {
   };
 }
 
+// Best-effort guess of "Artist - Title" from a file name when the file has no
+// embedded tags. Handles a leading track number ("01 - ", "01. ") and the
+// common " - " / " – " / " — " separator. Parentheses are left intact so real
+// titles like "Song (Live)" survive.
+function parseTitleArtistFromName(baseName) {
+  let name = String(baseName || '').replace(/_/g, ' ').trim();
+  name = name.replace(/^\s*\d{1,3}\s*[-.\s]\s*/, ''); // strip leading track number
+  const m = name.match(/^(.*?)\s[-–—]\s(.*)$/);       // split on first separator
+  if (m) {
+    const artist = m[1].trim();
+    const title = m[2].trim();
+    if (artist && title) return { artist, title };
+  }
+  return { artist: null, title: name || baseName };
+}
+
 // Extract embedded cover art (if any) to a jpg. Returns true on success.
 async function extractCover(filePath, coverPath) {
   const { code } = await runFfmpeg(['-i', filePath, '-an', '-frames:v', '1', '-y', coverPath]);
@@ -587,13 +603,17 @@ ipcMain.handle('import-local-files', async (event, filePaths) => {
       const coverPath = path.join(downloadsPath, `${id}.jpg`);
       const hasCover = await extractCover(destPath, coverPath);
 
+      // Prefer embedded tags; fall back to "Artist - Title" parsed from the
+      // file name; finally fall back to the raw name / a placeholder artist.
+      const guessed = parseTitleArtistFromName(baseName);
+
       const song = {
         id,
-        title: meta.title || baseName,
+        title: meta.title || guessed.title || baseName,
         thumbnail: hasCover ? `file://${coverPath}` : '',
         coverPath: hasCover ? coverPath : null,
         duration: meta.duration || 0,
-        channel: meta.artist || 'Local file',
+        channel: meta.artist || guessed.artist || 'Local file',
         filePath: destPath,
         source: 'local',
         importKey,
@@ -632,6 +652,77 @@ ipcMain.handle('delete-song', (event, songId) => {
     saveDB(db);
   }
   return { success: true };
+});
+
+// Rename / edit a song's display info (title and/or artist). Only touches the
+// database entry — the underlying audio file is left untouched.
+ipcMain.handle('update-song', (event, payload = {}) => {
+  const { songId } = payload;
+  const updates = payload.updates || {};
+  const song = db.songs.find(s => s.id === songId);
+  if (!song) return { success: false, error: 'Song not found' };
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'title')) {
+    const title = String(updates.title).trim();
+    if (title) song.title = title; // never allow an empty title
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'channel')) {
+    song.channel = String(updates.channel).trim();
+  }
+
+  saveDB(db);
+  return { success: true, song };
+});
+
+// Find album art online from a song's title + artist via the free iTunes Search
+// API (no key required). Done in the main process so there is no CORS issue.
+// Downloads the best match to a fresh cover file and updates the song's thumbnail.
+ipcMain.handle('fetch-cover-art', async (event, payload = {}) => {
+  const { songId } = payload;
+  const song = db.songs.find(s => s.id === songId);
+  if (!song) return { success: false, error: 'Song not found' };
+
+  const artist = (song.channel && song.channel !== 'Local file') ? song.channel : '';
+  const term = `${artist} ${song.title}`.trim();
+  if (!term) return { success: false, error: 'Need a title to search' };
+
+  try {
+    const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&limit=5`;
+    const res = await fetch(searchUrl);
+    if (!res.ok) return { success: false, error: `Lookup failed (${res.status})` };
+
+    const data = await res.json();
+    const hit = (data.results || []).find(r => r.artworkUrl100);
+    if (!hit) return { success: false, error: 'No matching cover found' };
+
+    // iTMS serves a small 100x100 thumb; bump the size segment up for a crisp cover.
+    const artworkUrl = hit.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.');
+    const imgRes = await fetch(artworkUrl);
+    if (!imgRes.ok) return { success: false, error: 'Failed to download cover' };
+
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    if (!buf.length) return { success: false, error: 'Empty cover image' };
+
+    // Write to a new filename so the renderer's file:// URL changes and reloads.
+    const newCoverPath = path.join(downloadsPath, `${song.id}-cov${Date.now().toString(36)}.jpg`);
+    fs.writeFileSync(newCoverPath, buf);
+    if (song.coverPath && song.coverPath !== newCoverPath) {
+      try { fs.unlinkSync(song.coverPath); } catch { /* ignore */ }
+    }
+
+    song.coverPath = newCoverPath;
+    song.thumbnail = `file://${newCoverPath}`;
+    saveDB(db);
+
+    return {
+      success: true,
+      song,
+      matched: { artist: hit.artistName, track: hit.trackName, album: hit.collectionName }
+    };
+  } catch (err) {
+    console.error('[PlayGen] Cover lookup failed:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('get-song-path', (event, songId) => {

@@ -125,6 +125,13 @@
     modalCancel: $('#modal-cancel'),
     modalConfirm: $('#modal-confirm'),
 
+    // Edit track modal
+    editTrackOverlay: $('#edit-track-overlay'),
+    editTitleInput: $('#edit-title-input'),
+    editArtistInput: $('#edit-artist-input'),
+    editCancel: $('#edit-cancel'),
+    editConfirm: $('#edit-confirm'),
+
     // Toast
     toastContainer: $('#toast-container'),
 
@@ -247,6 +254,13 @@
       success: `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 6 9 17l-5-5"/>
+        </svg>
+      `,
+      image: `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="9" cy="9" r="2"/>
+          <path d="m21 15-4.35-4.35a2 2 0 0 0-2.83 0L3 21"/>
         </svg>
       `
     };
@@ -441,6 +455,46 @@
   });
   dom.modalOverlay.addEventListener('click', (e) => {
     if (e.target === dom.modalOverlay) hideModal(null);
+  });
+
+  // ── Edit Track Modal ────────────────────────────────────────────
+  // Two-field dialog (Title + Artist). Resolves with { title, artist } on save
+  // or null on cancel. Kept separate from showModal so its own Enter/Escape
+  // handling doesn't collide with the single-field playlist modal.
+  let editTrackResolve = null;
+
+  function showEditTrackModal(song) {
+    return new Promise((resolve) => {
+      editTrackResolve = resolve;
+      dom.editTitleInput.value = song.title || '';
+      dom.editArtistInput.value = song.channel || '';
+      dom.editTrackOverlay.classList.add('visible');
+      setTimeout(() => { dom.editTitleInput.focus(); dom.editTitleInput.select(); }, 100);
+    });
+  }
+
+  function closeEditTrackModal(value) {
+    dom.editTrackOverlay.classList.remove('visible');
+    if (editTrackResolve) { editTrackResolve(value); editTrackResolve = null; }
+  }
+
+  function commitEditTrack() {
+    const title = dom.editTitleInput.value.trim();
+    const artist = dom.editArtistInput.value.trim();
+    if (!title) { dom.editTitleInput.focus(); return; } // title is required
+    closeEditTrackModal({ title, artist });
+  }
+
+  dom.editConfirm.addEventListener('click', commitEditTrack);
+  dom.editCancel.addEventListener('click', () => closeEditTrackModal(null));
+  [dom.editTitleInput, dom.editArtistInput].forEach((input) => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') commitEditTrack();
+      if (e.key === 'Escape') closeEditTrackModal(null);
+    });
+  });
+  dom.editTrackOverlay.addEventListener('click', (e) => {
+    if (e.target === dom.editTrackOverlay) closeEditTrackModal(null);
   });
 
   // ── Context Menu ────────────────────────────────────────────────
@@ -1167,6 +1221,8 @@
   function showSongContextMenu(x, y, song, isPlaylistView) {
     const items = [
       { label: 'Play', action: () => playSong(song) },
+      { label: 'Edit info', action: () => editSong(song) },
+      { label: 'Find cover art', action: () => fetchCoverArt(song) },
       { divider: true }
     ];
 
@@ -1720,6 +1776,75 @@
       eyebrow: 'Playlist deleted',
       title: pl.name
     });
+  }
+
+  async function editSong(song) {
+    const result = await showEditTrackModal(song);
+    if (!result) return;
+
+    // No-op if nothing actually changed
+    if (result.title === song.title && result.artist === (song.channel || '')) return;
+
+    await window.api.updateSong(song.id, { title: result.title, channel: result.artist });
+    state.songs = await window.api.getSongs();
+
+    // Keep the now-playing bar (and mini player) in sync if this is the active track
+    if (state.currentSong?.id === song.id) {
+      state.currentSong.title = result.title;
+      state.currentSong.channel = result.artist;
+      updatePlayerSongInfo();
+    }
+
+    renderSongList();
+    showToast({
+      type: 'success',
+      icon: 'edit',
+      eyebrow: 'Track updated',
+      title: result.title,
+      detail: result.artist || undefined,
+      thumbnail: song.thumbnail
+    });
+
+    // Now that the metadata is correct, auto-find album art for tracks that
+    // don't have any yet. Silent on failure so a rename never nags the user.
+    const updated = state.songs.find(s => s.id === song.id);
+    if (updated && !updated.thumbnail) {
+      fetchCoverArt(updated, { announce: false });
+    }
+  }
+
+  // Look up album art online (iTunes Search API) from the track's title + artist
+  // and apply it. `announce: false` keeps it quiet unless a cover is actually found.
+  async function fetchCoverArt(song, { announce = true } = {}) {
+    if (announce) {
+      showToast({ type: 'info', icon: 'image', eyebrow: 'Searching…', title: `Finding cover for "${song.title}"` });
+    }
+
+    const res = await window.api.fetchCoverArt(song.id);
+    if (!res?.success) {
+      if (announce) {
+        showToast({ type: 'info', icon: 'image', eyebrow: 'No cover found', title: song.title, detail: res?.error });
+      }
+      return false;
+    }
+
+    state.songs = await window.api.getSongs();
+    if (state.currentSong?.id === song.id) {
+      state.currentSong.thumbnail = res.song.thumbnail;
+      state.currentSong.coverPath = res.song.coverPath;
+      updatePlayerSongInfo();
+    }
+    renderSongList();
+
+    showToast({
+      type: 'success',
+      icon: 'image',
+      eyebrow: 'Cover added',
+      title: song.title,
+      detail: res.matched ? `${res.matched.artist} — ${res.matched.album}` : undefined,
+      thumbnail: res.song.thumbnail
+    });
+    return true;
   }
 
   async function deleteSong(song) {
