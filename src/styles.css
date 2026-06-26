@@ -17,6 +17,26 @@
   --amber: #ff8a2a;
   --accent-gradient: linear-gradient(135deg, #ff2d78 0%, #a855f7 52%, #ff8a2a 100%);
   --accent-gradient-soft: linear-gradient(135deg, rgba(255, 45, 120, 0.18), rgba(168, 85, 247, 0.12), rgba(255, 138, 42, 0.14));
+  --button-accent: #e83f79;
+  --button-accent-hover: #f2558a;
+  --button-accent-active: #ca3268;
+  --button-accent-shadow: rgba(232, 63, 121, 0.26);
+  --visualizer-bottom: rgba(232, 63, 121, 0.9);
+  --visualizer-mid: rgba(242, 85, 138, 0.68);
+  --visualizer-top: rgba(255, 155, 188, 0.46);
+  --visualizer-glow: rgba(232, 63, 121, 0.28);
+  --soundbar-gradient: linear-gradient(180deg, #ff9bbc 0%, #e83f79 100%);
+  --hero-fallback-c1: 255, 45, 120;
+  --hero-fallback-c2: 168, 85, 247;
+  --app-glow-primary: rgba(255, 45, 120, 0.1);
+  --app-glow-secondary: rgba(168, 85, 247, 0.08);
+  --app-glow-tertiary: rgba(255, 138, 42, 0.06);
+  --main-wash: rgba(100, 35, 75, 0.48);
+  --main-glow: rgba(168, 85, 247, 0.14);
+  --accent-icon-shadow: rgba(255, 45, 120, 0.2);
+  --accent-active-glow: rgba(168, 85, 247, 0.16);
+  --toast-glow: rgba(255, 45, 120, 0.2);
+  --toast-rich-border: rgba(255, 138, 42, 0.34);
   --danger: #f15e6c;
   --success: #ff8a2a;
   --warning: #ffb347;
@@ -52,6 +72,96 @@
   --t-fast: 120ms var(--ease);
   --t-base: 190ms var(--ease);
   --t-slow: 320ms var(--ease);
+}
+
+:root[data-theme="ocean"] {
+  --green: #21c7b7;
+  --green-dark: #139889;
+  --green-soft: rgba(33, 199, 183, 0.16);
+  --blue: #38bdf8;
+  --amber: #7dd3fc;
+  --accent-gradient: linear-gradient(135deg, #21c7b7 0%, #38bdf8 58%, #7dd3fc 100%);
+  --accent-gradient-soft: linear-gradient(135deg, rgba(33, 199, 183, 0.18), rgba(56, 189, 248, 0.12), rgba(125, 211, 252, 0.12));
+  --button-accent: #21b6a8;
+  --button-accent-hover: #30d1c2;
+  --button-accent-active: #168f84;
+  --button-accent-shadow: rgba(33, 182, 168, 0.24);
+  --visualizer-bottom: rgba(33, 182, 168, 0.9);
+  --visualizer-mid: rgba(56, 189, 248, 0.66);
+  --visualizer-top: rgba(125, 211, 252, 0.44);
+  --visualizer-glow: rgba(33, 182, 168, 0.26);
+  --soundbar-gradient: linear-gradient(180deg, #7dd3fc 0%, #21b6a8 100%);
+  --hero-fallback-c1: 33, 199, 183;
+  --hero-fallback-c2: 56, 189, 248;
+  --app-glow-primary: rgba(33, 199, 183, 0.1);
+  --app-glow-secondary: rgba(56, 189, 248, 0.08);
+  --app-glow-tertiary: rgba(125, 211, 252, 0.05);
+  --main-wash: rgba(19, 82, 84, 0.48);
+  --main-glow: rgba(56, 189, 248, 0.13);
+  --accent-icon-shadow: rgba(33, 199, 183, 0.2);
+  --accent-active-glow: rgba(56, 189, 248, 0.15);
+  --toast-glow: rgba(33, 199, 183, 0.18);
+  --toast-rich-border: rgba(125, 211, 252, 0.3);
+}
+
+:root[data-theme="ember"] {
+  --green: #f97316;
+  --green-dark: #c94d0c;
+  --green-soft: rgba(249, 115, 22, 0.16);
+  --blue: #f59e0b;
+  --amber: #facc15;
+  --accent-gradient: linear-gradient(135deg, #f97316 0%, #f59e0b 58%, #facc15 100%);
+  --accent-gradient-soft: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(245, 158, 11, 0.12), rgba(250, 204, 21, 0.1));
+  --button-accent: #e86f22;
+  --button-accent-hover: #f4863e;
+  --button-accent-active: #bf5516;
+  --button-accent-shadow: rgba(232, 111, 34, 0.24);
+  --visualizer-bottom: rgba(232, 111, 34, 0.9);
+  --visualizer-mid: rgba(245, 158, 11, 0.66);
+  --visualizer-top: rgba(250, 204, 21, 0.42);
+  --visualizer-glow: rgba(232, 111, 34, 0.25);
+  --soundbar-gradient: linear-gradient(180deg, #facc15 0%, #e86f22 100%);
+  --hero-fallback-c1: 249, 115, 22;
+  --hero-fallback-c2: 245, 158, 11;
+  --app-glow-primary: rgba(249, 115, 22, 0.1);
+  --app-glow-secondary: rgba(245, 158, 11, 0.08);
+  --app-glow-tertiary: rgba(250, 204, 21, 0.05);
+  --main-wash: rgba(94, 53, 22, 0.48);
+  --main-glow: rgba(245, 158, 11, 0.13);
+  --accent-icon-shadow: rgba(249, 115, 22, 0.2);
+  --accent-active-glow: rgba(245, 158, 11, 0.15);
+  --toast-glow: rgba(249, 115, 22, 0.18);
+  --toast-rich-border: rgba(250, 204, 21, 0.28);
+}
+
+:root[data-theme="violet"] {
+  --green: #9b5cf6;
+  --green-dark: #7436d9;
+  --green-soft: rgba(155, 92, 246, 0.16);
+  --blue: #c084fc;
+  --amber: #f0abfc;
+  --accent-gradient: linear-gradient(135deg, #9b5cf6 0%, #c084fc 56%, #f0abfc 100%);
+  --accent-gradient-soft: linear-gradient(135deg, rgba(155, 92, 246, 0.18), rgba(192, 132, 252, 0.12), rgba(240, 171, 252, 0.1));
+  --button-accent: #8b5cf6;
+  --button-accent-hover: #a178f8;
+  --button-accent-active: #7044d9;
+  --button-accent-shadow: rgba(139, 92, 246, 0.25);
+  --visualizer-bottom: rgba(139, 92, 246, 0.9);
+  --visualizer-mid: rgba(192, 132, 252, 0.66);
+  --visualizer-top: rgba(240, 171, 252, 0.42);
+  --visualizer-glow: rgba(139, 92, 246, 0.26);
+  --soundbar-gradient: linear-gradient(180deg, #f0abfc 0%, #8b5cf6 100%);
+  --hero-fallback-c1: 155, 92, 246;
+  --hero-fallback-c2: 192, 132, 252;
+  --app-glow-primary: rgba(155, 92, 246, 0.1);
+  --app-glow-secondary: rgba(192, 132, 252, 0.08);
+  --app-glow-tertiary: rgba(240, 171, 252, 0.05);
+  --main-wash: rgba(68, 45, 106, 0.48);
+  --main-glow: rgba(192, 132, 252, 0.13);
+  --accent-icon-shadow: rgba(155, 92, 246, 0.2);
+  --accent-active-glow: rgba(192, 132, 252, 0.15);
+  --toast-glow: rgba(155, 92, 246, 0.18);
+  --toast-rich-border: rgba(240, 171, 252, 0.28);
 }
 
 *,
@@ -140,7 +250,7 @@ button {
   display: block;
   border-radius: 6px;
   object-fit: contain;
-  filter: drop-shadow(0 4px 10px rgba(255, 45, 120, 0.2));
+  filter: drop-shadow(0 4px 10px var(--accent-icon-shadow));
 }
 
 .logo-text {
@@ -192,9 +302,9 @@ button {
   flex-direction: column;
   overflow: hidden;
   background:
-    linear-gradient(160deg, rgba(255, 45, 120, 0.1) 0%, transparent 28%),
-    linear-gradient(200deg, rgba(168, 85, 247, 0.08) 0%, transparent 32%),
-    linear-gradient(20deg, rgba(255, 138, 42, 0.06) 0%, transparent 24%),
+    linear-gradient(160deg, var(--app-glow-primary) 0%, transparent 28%),
+    linear-gradient(200deg, var(--app-glow-secondary) 0%, transparent 32%),
+    linear-gradient(20deg, var(--app-glow-tertiary) 0%, transparent 24%),
     var(--bg-base);
   position: relative;
 }
@@ -290,11 +400,12 @@ button {
 .modal-btn-confirm {
   border: 0;
   border-radius: var(--radius-pill);
-  background: var(--accent-gradient);
+  background: var(--button-accent);
   color: #fff;
   font-weight: 800;
   cursor: pointer;
-  transition: transform var(--t-base), filter var(--t-base), background var(--t-base);
+  box-shadow: 0 10px 22px var(--button-accent-shadow);
+  transition: transform var(--t-base), background var(--t-base), box-shadow var(--t-base);
 }
 
 .btn-download {
@@ -313,7 +424,8 @@ button {
 .btn-playlist-delay:hover,
 .modal-btn-confirm:hover {
   transform: scale(1.03);
-  filter: brightness(1.08);
+  background: var(--button-accent-hover);
+  box-shadow: 0 12px 28px rgba(242, 85, 138, 0.3);
 }
 
 .btn-download:active,
@@ -321,6 +433,7 @@ button {
 .btn-playlist-delay:active,
 .modal-btn-confirm:active {
   transform: scale(0.98);
+  background: var(--button-accent-active);
 }
 
 .btn-download.downloading {
@@ -591,8 +704,8 @@ button {
   min-width: 0;
   overflow-y: auto;
   background:
-    linear-gradient(180deg, rgba(100, 35, 75, 0.48) 0, rgba(18, 18, 18, 0.96) 270px),
-    linear-gradient(135deg, rgba(168, 85, 247, 0.14), transparent 260px),
+    linear-gradient(180deg, var(--main-wash) 0, rgba(18, 18, 18, 0.96) 270px),
+    linear-gradient(135deg, var(--main-glow), transparent 260px),
     var(--bg-panel);
   position: relative;
 }
@@ -627,7 +740,7 @@ button {
   background:
     linear-gradient(180deg, rgba(18, 18, 18, 0) 32%, rgba(18, 18, 18, 0.55) 74%, var(--bg-panel) 100%),
     linear-gradient(90deg, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.04) 74%),
-    linear-gradient(125deg, rgba(var(--hero-c1, 255, 45, 120), 0.55) 0%, rgba(var(--hero-c2, 168, 85, 247), 0.34) 48%, rgba(var(--hero-c2, 168, 85, 247), 0) 88%);
+    linear-gradient(125deg, rgba(var(--hero-c1, var(--hero-fallback-c1)), 0.55) 0%, rgba(var(--hero-c2, var(--hero-fallback-c2)), 0.34) 48%, rgba(var(--hero-c2, var(--hero-fallback-c2)), 0) 88%);
 }
 
 .view-hero-content {
@@ -735,6 +848,20 @@ button {
   white-space: nowrap;
 }
 
+.btn-playlist-delay:hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06)),
+    rgba(24, 24, 24, 0.88);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-playlist-delay:active {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(16, 16, 16, 0.92);
+}
+
 .song-list-header,
 .song-item {
   display: grid;
@@ -798,7 +925,7 @@ button {
 }
 
 .song-item.playing {
-  background: rgba(255, 45, 120, 0.12);
+  background: var(--green-soft);
 }
 
 .song-item.playing::before {
@@ -865,7 +992,7 @@ button {
   width: 3px;
   height: var(--bar-rest);
   border-radius: 2px;
-  background: var(--accent-gradient);
+  background: var(--soundbar-gradient);
   opacity: 0.58;
   animation: none;
   transform-origin: bottom;
@@ -1233,7 +1360,7 @@ body.audio-playing .song-item.playing .playing-bar {
 }
 
 .btn-play.is-playing {
-  box-shadow: 0 0 0 6px rgba(255, 45, 120, 0.12), 0 0 24px rgba(168, 85, 247, 0.16);
+  box-shadow: 0 0 0 6px var(--green-soft), 0 0 24px var(--accent-active-glow);
 }
 
 .player-progress {
@@ -1585,6 +1712,70 @@ body.audio-playing .song-item.playing .playing-bar {
   font-size: 12px;
 }
 
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.theme-option {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-main);
+  cursor: pointer;
+  font-weight: 800;
+  transition: background var(--t-base), border-color var(--t-base), color var(--t-base);
+}
+
+.theme-option:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-strong);
+}
+
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-option:has(input:checked) {
+  border-color: var(--button-accent);
+  background: var(--green-soft);
+  color: var(--text-strong);
+}
+
+.theme-swatch {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.18);
+  flex: 0 0 auto;
+}
+
+.theme-swatch-rose {
+  background: linear-gradient(135deg, #ff9bbc, #e83f79);
+}
+
+.theme-swatch-ocean {
+  background: linear-gradient(135deg, #7dd3fc, #21b6a8);
+}
+
+.theme-swatch-ember {
+  background: linear-gradient(135deg, #facc15, #e86f22);
+}
+
+.theme-swatch-violet {
+  background: linear-gradient(135deg, #f0abfc, #8b5cf6);
+}
+
 .toggle-switch {
   position: relative;
   width: 44px;
@@ -1665,7 +1856,7 @@ body.audio-playing .song-item.playing .playing-bar {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(circle at 16% 0%, rgba(255, 45, 120, 0.2), transparent 38%);
+  background: radial-gradient(circle at 16% 0%, var(--toast-glow), transparent 38%);
   opacity: 0;
   pointer-events: none;
 }
@@ -1690,9 +1881,9 @@ body.audio-playing .song-item.playing .playing-bar {
   width: 100%;
   min-height: 72px;
   padding: 10px 14px 10px 10px;
-  border-left: 1px solid rgba(255, 138, 42, 0.34);
+  border-left: 1px solid var(--toast-rich-border);
   background:
-    linear-gradient(135deg, rgba(255, 45, 120, 0.16), rgba(168, 85, 247, 0.1) 45%, rgba(255, 138, 42, 0.14)),
+    var(--accent-gradient-soft),
     rgba(22, 22, 22, 0.96);
 }
 
@@ -1853,7 +2044,7 @@ body.audio-playing .song-item.playing .playing-bar {
   width: 86px;
   height: 86px;
   object-fit: contain;
-  filter: drop-shadow(0 14px 28px rgba(255, 45, 120, 0.24));
+  filter: drop-shadow(0 14px 28px var(--accent-icon-shadow));
 }
 
 .loading-spinner {

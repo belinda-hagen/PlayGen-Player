@@ -21,6 +21,7 @@
     searchQuery: '',
     isDownloading: false,
     cancelDownload: false,
+    theme: 'rose',
     dragSongId: null,
     dragSongIds: null,            // all song ids being dragged (multi-select)
     selectedSongIds: new Set(),   // multi-selected songs in the current view
@@ -36,6 +37,8 @@
     { value: 10, label: '10 seconds' },
     { value: 30, label: '30 seconds' }
   ];
+
+  const THEME_KEYS = new Set(['rose', 'ocean', 'ember', 'violet']);
 
   // ── Play transition guards ──────────────────────────────────────
   let _playId = 0;
@@ -140,6 +143,7 @@
     settingsOverlay: $('#settings-overlay'),
     settingsClose: $('#settings-close'),
     settingMiniPlayer: $('#setting-mini-player'),
+    settingThemeInputs: $$('input[name="setting-theme"]'),
 
     // Sidebar
     sidebar: $('#sidebar'),
@@ -168,6 +172,20 @@
 
   function normalizeDelay(value) {
     return Math.max(0, Number(value) || 0);
+  }
+
+  function normalizeTheme(theme) {
+    return THEME_KEYS.has(theme) ? theme : 'rose';
+  }
+
+  function applyTheme(theme) {
+    state.theme = normalizeTheme(theme);
+    document.documentElement.dataset.theme = state.theme;
+  }
+
+  function getThemeValue(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
   }
 
   function getDelayLabel(value) {
@@ -580,6 +598,10 @@
     // Load data
     state.songs = await window.api.getSongs();
     state.playlists = await window.api.getPlaylists();
+
+    // Load settings
+    const settings = await window.api.getSettings();
+    applyTheme(settings.theme);
 
     // Load session
     const session = await window.api.getSession();
@@ -2488,16 +2510,22 @@
       const barCount = 12;
       const barWidth = width / barCount - 1;
       const step = Math.floor(bufferLength / barCount);
+      const visualizerBottom = getThemeValue('--visualizer-bottom', 'rgba(232, 63, 121, 0.9)');
+      const visualizerMid = getThemeValue('--visualizer-mid', 'rgba(242, 85, 138, 0.68)');
+      const visualizerTop = getThemeValue('--visualizer-top', 'rgba(255, 155, 188, 0.46)');
+      const visualizerGlow = getThemeValue('--visualizer-glow', 'rgba(232, 63, 121, 0.28)');
 
       for (let i = 0; i < barCount; i++) {
         const value = dataArray[i * step] / 255;
         const barHeight = value * height * 0.8;
 
         const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-        gradient.addColorStop(0, 'rgba(255, 45, 120, 0.9)');
-        gradient.addColorStop(0.55, 'rgba(168, 85, 247, 0.68)');
-        gradient.addColorStop(1, 'rgba(255, 138, 42, 0.58)');
+        gradient.addColorStop(0, visualizerBottom);
+        gradient.addColorStop(0.62, visualizerMid);
+        gradient.addColorStop(1, visualizerTop);
 
+        ctx.shadowColor = visualizerGlow;
+        ctx.shadowBlur = 3;
         ctx.fillStyle = gradient;
         ctx.fillRect(
           i * (barWidth + 1),
@@ -2506,9 +2534,6 @@
           barHeight
         );
 
-        // Glow effect
-        ctx.shadowColor = 'rgba(255, 45, 120, 0.36)';
-        ctx.shadowBlur = 4;
       }
 
       ctx.shadowBlur = 0;
@@ -2520,7 +2545,11 @@
   // ── Settings ────────────────────────────────────────────────────
   async function openSettings() {
     const settings = await window.api.getSettings();
+    applyTheme(settings.theme);
     dom.settingMiniPlayer.checked = settings.miniPlayerOnMinimize ?? true;
+    dom.settingThemeInputs.forEach(input => {
+      input.checked = input.value === state.theme;
+    });
     dom.settingsOverlay.classList.add('visible');
   }
 
@@ -2536,7 +2565,8 @@
       channel: state.currentSong?.channel || '',
       thumbnail: state.currentSong?.thumbnail || '',
       isPlaying: state.isPlaying,
-      progress: audio.duration ? (audio.currentTime / audio.duration) * 100 : 0
+      progress: audio.duration ? (audio.currentTime / audio.duration) * 100 : 0,
+      theme: state.theme
     });
   }
 
@@ -2594,6 +2624,14 @@
     });
     dom.settingMiniPlayer.addEventListener('change', () => {
       window.api.saveSettings({ miniPlayerOnMinimize: dom.settingMiniPlayer.checked });
+    });
+    dom.settingThemeInputs.forEach(input => {
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        applyTheme(input.value);
+        window.api.saveSettings({ theme: state.theme });
+        sendMiniPlayerState();
+      });
     });
     // Sidebar toggle
     dom.btnToggleSidebar.addEventListener('click', () => {

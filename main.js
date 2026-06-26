@@ -20,7 +20,7 @@ function loadDB() {
   } catch (e) {
     console.error('Failed to load DB:', e);
   }
-  return { songs: [], playlists: [], session: { lastSongId: null, lastPlaylistId: null, volume: 0.8, shuffle: false, repeat: 'none' }, settings: { miniPlayerOnMinimize: true } };
+  return { songs: [], playlists: [], session: { lastSongId: null, lastPlaylistId: null, volume: 0.8, shuffle: false, repeat: 'none' }, settings: { miniPlayerOnMinimize: true, theme: 'rose' } };
 }
 
 function saveDB(db) {
@@ -874,7 +874,7 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
 
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
-  return { miniPlayerOnMinimize: true, ...(db.settings || {}) };
+  return { miniPlayerOnMinimize: true, theme: 'rose', ...(db.settings || {}) };
 });
 
 ipcMain.handle('save-settings', (event, settings) => {
