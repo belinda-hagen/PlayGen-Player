@@ -57,6 +57,26 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('request-player-state', () => callback());
   },
 
+  // Listen Together
+  partyStart: (options) => ipcRenderer.invoke('party-start', options),
+  partyStop: () => ipcRenderer.invoke('party-stop'),
+  partyStatus: () => ipcRenderer.invoke('party-status'),
+  partySetGuestControl: (allow) => ipcRenderer.invoke('party-set-guest-control', allow),
+  partyKick: (listenerId) => ipcRenderer.invoke('party-kick', listenerId),
+  partySendState: (playerState) => ipcRenderer.send('party-state', playerState),
+  partyBrowseStart: () => ipcRenderer.invoke('party-browse-start'),
+  partyBrowseStop: () => ipcRenderer.invoke('party-browse-stop'),
+  partyLocalAddresses: () => ipcRenderer.invoke('party-local-addresses'),
+  onPartyListeners: (callback) => {
+    ipcRenderer.on('party-listeners', (event, data) => callback(data));
+  },
+  onPartyDiscovered: (callback) => {
+    ipcRenderer.on('party-discovered', (event, data) => callback(data));
+  },
+  onPartyRequest: (callback) => {
+    ipcRenderer.on('party-request', (event, data) => callback(data));
+  },
+
   // Keyboard shortcuts from main process
   onShortcutPrev: (callback) => {
     ipcRenderer.on('shortcut-prev', () => callback());

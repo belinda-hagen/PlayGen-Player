@@ -37,9 +37,33 @@
 | **Adaptive cover art** | The now-playing banner tints itself to match the album art |
 | **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
 | **Mini player** | Compact always-on-top player when minimized (toggle in settings) |
+| **Listen Together** | Host a party on your network and let friends listen along, in sync |
 | **Search** | Instantly filter songs across your library |
 
 > **Tip:** Right-click a playlist to **rename** it, set its **next-song delay**, or **export** all its tracks to a folder. Inside a playlist a song is only *removed* from that playlist — permanent deletion lives in the **Downloads** view.
+
+## Listen Together
+
+Play the same music, at the same moment, with people on your network.
+
+**To host:** open **Listen Together** in the sidebar, enter your name, and hit
+**Start a party**. PlayGen shows an address like `192.168.1.42:8420` to share.
+
+**To join:** open **Listen Together** — parties on your network show up on their
+own, so just hit **Join**. If nothing appears (some networks block broadcast
+traffic), type the host's address in by hand.
+
+Guests **stream the audio from the host**, so they hear the host's tracks whether
+or not they have them. Everyone's playhead stays locked to the host's, and each
+listener keeps their own volume.
+
+| | |
+|---|---|
+| **Who controls playback** | The host, unless they switch on *Let guests control playback* |
+| **Join code** | Optional — turn it on to require a 4-digit code |
+| **Removing someone** | Hosts can remove any listener from the party panel |
+| **Reach** | Same network, or the same VPN. There's no relay server, so it won't traverse the open internet |
+| **Firewall** | Windows may ask you to allow PlayGen the first time you host — say yes, or nobody can connect |
 
 ## Prerequisites
 

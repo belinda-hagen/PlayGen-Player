@@ -145,6 +145,37 @@
     settingMiniPlayer: $('#setting-mini-player'),
     settingThemeInputs: $$('input[name="setting-theme"]'),
 
+    // Listen Together
+    btnParty: $('#btn-party'),
+    partyPill: $('#party-pill'),
+    partyPillText: $('#party-pill-text'),
+    partyOverlay: $('#party-overlay'),
+    partyClose: $('#party-close'),
+    partyHeading: $('#party-heading'),
+    partyNameInput: $('#party-name-input'),
+    partyRequireCode: $('#party-require-code'),
+    btnPartyHost: $('#btn-party-host'),
+    partyScanning: $('#party-scanning'),
+    partyDiscoveredList: $('#party-discovered-list'),
+    partyAddressInput: $('#party-address-input'),
+    partyCodeInput: $('#party-code-input'),
+    btnPartyJoin: $('#btn-party-join'),
+    partyInviteAddress: $('#party-invite-address'),
+    partyInviteCodeRow: $('#party-invite-code-row'),
+    partyInviteCode: $('#party-invite-code'),
+    btnPartyCopy: $('#btn-party-copy'),
+    partyHostCount: $('#party-host-count'),
+    partyListenerList: $('#party-listener-list'),
+    partyGuestControl: $('#party-guest-control'),
+    btnPartyEnd: $('#btn-party-end'),
+    partyConnection: $('#party-connection'),
+    partyGuestName: $('#party-guest-name'),
+    partyGuestStatus: $('#party-guest-status'),
+    partyGuestHint: $('#party-guest-hint'),
+    partyGuestCount: $('#party-guest-count'),
+    partyGuestListenerList: $('#party-guest-listener-list'),
+    btnPartyLeave: $('#btn-party-leave'),
+
     // Sidebar
     sidebar: $('#sidebar'),
     btnToggleSidebar: $('#btn-toggle-sidebar'),
@@ -602,6 +633,7 @@
     // Load settings
     const settings = await window.api.getSettings();
     applyTheme(settings.theme);
+    dom.partyNameInput.value = settings.displayName || '';
 
     // Load session
     const session = await window.api.getSession();
@@ -653,6 +685,18 @@
     });
 
     setupEventListeners();
+    setupPartyListeners();
+
+    // A party survives a renderer reload, so pick it back up if one is live.
+    const partyStatus = await window.api.partyStatus();
+    if (partyStatus?.hosting) {
+      party.host = partyStatus.party;
+      party.listeners = partyStatus.party.listeners || [];
+      party.allowGuestControl = partyStatus.party.allowGuestControl;
+      setPartyMode('host');
+    } else {
+      setPartyMode('off');
+    }
 
     // Hide loading screen
     dom.loadingScreen.classList.add('hidden');
@@ -1903,6 +1947,7 @@
     dom.btnPlay.classList.remove('is-playing');
     document.body.classList.remove('audio-playing');
     sendMiniPlayerState();
+    broadcastPartyState(true);
 
     const delayMs = getActiveNextSongDelay() * 1000;
     if (delayMs === 0) {
@@ -1939,12 +1984,16 @@
     document.body.classList.remove('audio-playing');
     updatePlayerUI();
     updatePlayerSongInfo();
+    broadcastPartyState(true);
   }
 
   // Clear the now-playing track from the player bar entirely: stop playback,
   // reset the transport, drop the "Playing" marker in the list, and forget it
   // so it isn't restored on next launch.
   function clearCurrentTrack() {
+    // A guest's track belongs to the party, not to them — leaving is the
+    // only way to clear it, otherwise the sync loop and the UI disagree.
+    if (isPartyGuest()) return;
     stopCurrentPlayback();
     audio.removeAttribute('src');
     audio.load();
@@ -1961,8 +2010,9 @@
   async function refreshLibrary() {
     state.songs = await window.api.getSongs();
     state.playlists = await window.api.getPlaylists();
-    // If the track sitting in the player no longer exists, clear it.
-    if (state.currentSong && !state.songs.some(s => s.id === state.currentSong.id)) {
+    // If the track sitting in the player no longer exists, clear it. A guest's
+    // track lives in the host's library, so it is never ours to clear.
+    if (!isPartyGuest() && state.currentSong && !state.songs.some(s => s.id === state.currentSong.id)) {
       clearCurrentTrack();
     }
     renderSidebar();
@@ -1970,6 +2020,17 @@
   }
 
   function playSong(song) {
+    if (isPartyGuest()) {
+      showToast({
+        type: 'info',
+        icon: 'info',
+        eyebrow: 'Listening party',
+        title: `${party.guest.hostName} picks the music`,
+        detail: 'Leave the party to play your own library'
+      });
+      return;
+    }
+
     clearNextSongTimer();
 
     const playId = ++_playId;
@@ -2022,6 +2083,9 @@
       return;
     }
 
+    // A party stream may have left the element in cross-origin mode.
+    audio.removeAttribute('crossorigin');
+    audio.playbackRate = 1;
     audio.src = `file://${song.filePath}`;
     audio.play().catch(err => {
       if (playId !== _playId) return;
@@ -2038,6 +2102,7 @@
 
     initVisualizer();
     saveSession();
+    broadcastPartyState(true);
   }
 
   function buildQueue() {
@@ -2153,6 +2218,11 @@
   }
 
   function togglePlay() {
+    if (isPartyGuest()) {
+      partyGuestRequest('toggle');
+      return;
+    }
+
     if (nextSongTimer) {
       clearNextSongTimer();
       playNext();
@@ -2186,15 +2256,22 @@
     }
     updatePlayerUI();
     renderSongList();
+    broadcastPartyState(true);
   }
 
   function playNext() {
+    if (isPartyGuest()) {
+      partyGuestRequest('next');
+      return;
+    }
+
     clearNextSongTimer();
     if (state.currentQueue.length === 0) return;
 
     if (state.repeat === 'one') {
       audio.currentTime = 0;
       audio.play();
+      broadcastPartyState(true);
       return;
     }
 
@@ -2209,12 +2286,18 @@
   }
 
   function playPrev() {
+    if (isPartyGuest()) {
+      partyGuestRequest('prev');
+      return;
+    }
+
     clearNextSongTimer();
     if (state.currentQueue.length === 0) return;
 
     // If more than 3 seconds into song, restart it
     if (audio.currentTime > 3) {
       audio.currentTime = 0;
+      broadcastPartyState(true);
       return;
     }
 
@@ -2224,6 +2307,7 @@
         prevIndex = state.currentQueue.length - 1;
       } else {
         audio.currentTime = 0;
+        broadcastPartyState(true);
         return;
       }
     }
@@ -2233,6 +2317,7 @@
   }
 
   function toggleShuffle() {
+    if (isPartyGuest()) return;
     state.shuffle = !state.shuffle;
     updateShuffleUI();
     if (state.currentQueue.length > 0) {
@@ -2245,6 +2330,7 @@
   }
 
   function toggleRepeat() {
+    if (isPartyGuest()) return;
     const modes = ['none', 'all', 'one'];
     const idx = modes.indexOf(state.repeat);
     state.repeat = modes[(idx + 1) % modes.length];
@@ -2355,6 +2441,13 @@
     }
 
     dom.progressTrack.addEventListener('mousedown', (e) => {
+      // A guest never scrubs their own copy — they ask the host to move.
+      if (isPartyGuest()) {
+        const pct = updateProgress(e);
+        const duration = party.remote?.duration || audio.duration || 0;
+        if (duration) partyGuestRequest('seek', pct * duration);
+        return;
+      }
       isDragging = true;
       const pct = updateProgress(e);
       if (audio.duration) {
@@ -2375,6 +2468,8 @@
       if (isDragging) {
         isDragging = false;
         dom.progressThumb.style.opacity = '';
+        // Tell the party where we landed rather than waiting for the tick.
+        broadcastPartyState(true);
       }
     });
   }
@@ -2421,10 +2516,13 @@
     dom.timeCurrent.textContent = formatTime(audio.currentTime);
     dom.timeTotal.textContent = formatTime(audio.duration);
     sendMiniPlayerState();
+    broadcastPartyState();
   });
 
   audio.addEventListener('ended', () => {
     if (_isTransitioning) return;
+    // In a party the host decides what comes next; a guest just waits.
+    if (isPartyGuest()) return;
     scheduleNextSong();
   });
 
@@ -2438,20 +2536,26 @@
     dom.btnPlay.classList.add('is-playing');
     document.body.classList.add('audio-playing');
     sendMiniPlayerState();
+    broadcastPartyState(true);
   });
 
   audio.addEventListener('pause', () => {
     if (_isTransitioning) return;
+    // A guest pausing is a sync correction, not a change to the party.
+    if (isPartyGuest()) return;
     state.isPlaying = false;
     updatePlayerUI();
     dom.playerThumbnail.classList.add('paused');
     dom.btnPlay.classList.remove('is-playing');
     document.body.classList.remove('audio-playing');
     sendMiniPlayerState();
+    broadcastPartyState(true);
   });
 
   audio.addEventListener('error', () => {
     if (_isTransitioning) _isTransitioning = false;
+    // An empty src is how we tear a track down, not a failure.
+    if (!audio.getAttribute('src')) return;
     state.isPlaying = false;
     updatePlayerUI();
     dom.btnPlay.classList.remove('is-playing');
@@ -2460,7 +2564,7 @@
       type: 'error',
       icon: 'music',
       eyebrow: 'Playback error',
-      title: 'Audio file not found or corrupted',
+      title: isPartyGuest() ? 'Lost the stream from the host' : 'Audio file not found or corrupted',
       detail: state.currentSong?.title
     });
   });
@@ -2572,6 +2676,8 @@
 
   // ── Session ─────────────────────────────────────────────────────
   function saveSession() {
+    // A guest's now-playing track belongs to the host's library, not ours.
+    if (isPartyGuest()) return;
     window.api.saveSession({
       lastSongId: state.currentSong?.id || null,
       lastPlaylistId: state.currentView !== 'all' ? state.currentView : null,
@@ -2589,6 +2695,781 @@
       state.searchQuery = e.target.value.trim();
       renderSongList();
     }, 200);
+  }
+
+  // ── Listen Together ─────────────────────────────────────────────
+  // One person hosts: their app serves the audio and keeps broadcasting
+  // where the playhead is. Everyone else streams from them and nudges
+  // their own playback until it lines up.
+  const party = {
+    mode: 'off',            // 'off' | 'host' | 'guest'
+    host: null,             // host: party info returned by the main process
+    guest: null,            // guest: { base, listenerId, partyName, hostName }
+    listeners: [],
+    discovered: [],
+    allowGuestControl: false,
+    connected: false,
+    remote: null,           // last state payload received from the host
+    remoteAt: 0,            // performance.now() when that payload landed
+    remoteSongId: null,     // host-side id of the track we currently have loaded
+    source: null,           // EventSource
+    syncTimer: null,
+    browsing: false,
+    lastBroadcast: 0,
+    disconnectedAt: 0       // when the event stream dropped, for the give-up timer
+  };
+
+  const PARTY_BROADCAST_MS = 1000;   // how often the host reports its playhead
+  const PARTY_SYNC_MS = 500;         // how often a guest checks its drift
+  const PARTY_HARD_SEEK = 1.5;       // drift (s) big enough to justify jumping
+  const PARTY_NUDGE = 0.15;          // drift (s) we smooth out via playback rate
+  const PARTY_GIVE_UP_MS = 30000;    // how long we wait out a silent host
+
+  function isPartyGuest() {
+    return party.mode === 'guest';
+  }
+
+  // ── Host ──────────────────────────────────────────────────────
+  function partyStatePayload() {
+    const song = state.currentSong;
+    const remoteCover = /^https?:/i.test(song?.thumbnail || '') ? song.thumbnail : null;
+    return {
+      song: song ? {
+        id: song.id,
+        title: song.title,
+        channel: song.channel || '',
+        duration: song.duration || (Number.isFinite(audio.duration) ? audio.duration : 0),
+        remoteCover,
+        hasCover: Boolean(song.coverPath) || Boolean(remoteCover)
+      } : null,
+      isPlaying: Boolean(state.isPlaying) && !audio.paused,
+      position: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+      duration: Number.isFinite(audio.duration) ? audio.duration : (song?.duration || 0),
+      hostName: party.host?.hostName || ''
+    };
+  }
+
+  // `immediate` skips the throttle — use it whenever the playhead jumps
+  // rather than simply advances, so guests never chase a stale position.
+  function broadcastPartyState(immediate = false) {
+    if (party.mode !== 'host') return;
+    const now = performance.now();
+    if (!immediate && now - party.lastBroadcast < PARTY_BROADCAST_MS) return;
+    party.lastBroadcast = now;
+    window.api.partySendState(partyStatePayload());
+  }
+
+  async function startPartyHost() {
+    const hostName = (dom.partyNameInput.value || '').trim() || 'Host';
+    dom.btnPartyHost.disabled = true;
+
+    try {
+      const result = await window.api.partyStart({
+        hostName,
+        partyName: `${hostName}'s party`,
+        requireCode: dom.partyRequireCode.checked,
+        allowGuestControl: dom.partyGuestControl.checked,
+        state: partyStatePayload()
+      });
+
+      if (!result.ok) {
+        showToast({
+          type: 'error',
+          icon: 'error',
+          eyebrow: 'Listen together',
+          title: 'Could not start the party',
+          detail: result.error
+        });
+        return;
+      }
+
+      window.api.saveSettings({ displayName: hostName });
+      party.host = result.party;
+      party.listeners = result.party.listeners || [];
+      party.allowGuestControl = result.party.allowGuestControl;
+      stopPartyBrowse();
+      setPartyMode('host');
+      broadcastPartyState(true);
+
+      showToast({
+        type: 'success',
+        icon: 'success',
+        eyebrow: 'Listen together',
+        title: 'Your party is live',
+        detail: `Friends can join at ${result.party.invite}`
+      });
+    } finally {
+      dom.btnPartyHost.disabled = false;
+    }
+  }
+
+  async function endPartyHost() {
+    await window.api.partyStop();
+    party.host = null;
+    party.listeners = [];
+    setPartyMode('off');
+    startPartyBrowse();
+    showToast({
+      type: 'info',
+      icon: 'info',
+      eyebrow: 'Listen together',
+      title: 'Party ended'
+    });
+  }
+
+  // ── Guest ─────────────────────────────────────────────────────
+  function partyCoverUrl(songPayload) {
+    if (!songPayload) return '';
+    if (songPayload.remoteCover) return songPayload.remoteCover;
+    if (songPayload.hasCover && party.guest) {
+      return `${party.guest.base}/api/track/${encodeURIComponent(songPayload.id)}/cover?t=${party.guest.listenerId}`;
+    }
+    return '';
+  }
+
+  // Accepts "192.168.1.42", "192.168.1.42:8420" or a pasted http URL.
+  function parsePartyAddress(raw) {
+    let text = String(raw || '').trim();
+    if (!text) return null;
+    text = text.replace(/^\w+:\/\//, '').replace(/\/.*$/, '');
+    const [address, portText] = text.split(':');
+    if (!address) return null;
+    const port = portText ? parseInt(portText, 10) : 8420;
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+    return { address, port };
+  }
+
+  async function joinParty({ address, port, code, partyName, hostName }) {
+    const base = `http://${address}:${port}`;
+    const name = (dom.partyNameInput.value || '').trim() || 'Listener';
+
+    dom.btnPartyJoin.disabled = true;
+    try {
+      const response = await fetch(`${base}/api/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, code: (code || '').trim() })
+      });
+
+      if (!response.ok) {
+        const detail = response.status === 401
+          ? 'That join code is not right'
+          : (response.status === 503 ? 'That host is not running a party' : `Host replied ${response.status}`);
+        showToast({ type: 'error', icon: 'error', eyebrow: 'Listen together', title: 'Could not join', detail });
+        return;
+      }
+
+      const data = await response.json();
+      window.api.saveSettings({ displayName: name });
+
+      party.guest = {
+        base,
+        listenerId: data.listenerId,
+        partyName: data.party?.name || partyName || 'Listening party',
+        hostName: data.party?.hostName || hostName || 'Host'
+      };
+      party.listeners = data.listeners || [];
+      party.remote = null;
+      party.remoteSongId = null;
+      party.connected = false;
+
+      stopPartyBrowse();
+      setPartyMode('guest');
+      stopCurrentPlayback();
+      openPartyStream();
+
+      clearInterval(party.syncTimer);
+      party.syncTimer = setInterval(syncGuestPlayback, PARTY_SYNC_MS);
+
+      if (data.state) handlePartyState(data.state);
+
+      showToast({
+        type: 'success',
+        icon: 'success',
+        eyebrow: 'Listen together',
+        title: `Joined ${party.guest.partyName}`,
+        detail: `Hosted by ${party.guest.hostName}`
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        icon: 'error',
+        eyebrow: 'Listen together',
+        title: 'Could not reach that host',
+        detail: 'Check the address, and that you are both on the same network'
+      });
+    } finally {
+      dom.btnPartyJoin.disabled = false;
+    }
+  }
+
+  // Joining from the discovered list: the announcement tells us up front
+  // whether a code is needed, so ask for it rather than failing the join.
+  async function joinDiscoveredParty(found) {
+    let code = (dom.partyCodeInput.value || '').trim();
+
+    if (found.requiresCode && !code) {
+      code = await showModal(
+        found.name,
+        'Join code',
+        '',
+        'JOIN',
+        null,
+        { icon: 'link', eyebrow: `Ask ${found.hostName} for the 4-digit code` }
+      );
+      if (!code) return;
+    }
+
+    joinParty({
+      address: found.address,
+      port: found.port,
+      code,
+      partyName: found.name,
+      hostName: found.hostName
+    });
+  }
+
+  function openPartyStream() {
+    closePartyStream();
+    const { base, listenerId } = party.guest;
+    const source = new EventSource(`${base}/api/events?listener=${encodeURIComponent(listenerId)}`);
+    party.source = source;
+
+    source.addEventListener('open', () => {
+      party.connected = true;
+      renderPartyPanel();
+      updatePartyPill();
+    });
+
+    source.addEventListener('state', (event) => {
+      try {
+        handlePartyState(JSON.parse(event.data));
+      } catch { /* ignore a malformed frame */ }
+    });
+
+    source.addEventListener('listeners', (event) => {
+      try {
+        party.listeners = JSON.parse(event.data).listeners || [];
+      } catch { /* ignore a malformed frame */ }
+      renderPartyPanel();
+      updatePartyPill();
+    });
+
+    source.addEventListener('closed', (event) => {
+      let reason = 'ended';
+      try { reason = JSON.parse(event.data).reason || reason; } catch { /* use default */ }
+      partyDropped(reason);
+    });
+
+    source.addEventListener('error', () => {
+      party.connected = false;
+      // A CLOSED stream means the host refused us outright — the party is
+      // over or we were removed. Anything else is a blip worth waiting out.
+      if (source.readyState === EventSource.CLOSED) {
+        partyDropped('lost');
+        return;
+      }
+      if (!party.disconnectedAt) party.disconnectedAt = performance.now();
+      if (!audio.paused) audio.pause();
+      renderPartyPanel();
+      updatePartyPill();
+    });
+  }
+
+  function closePartyStream() {
+    if (!party.source) return;
+    try { party.source.close(); } catch { /* already closed */ }
+    party.source = null;
+  }
+
+  function handlePartyState(payload) {
+    if (party.mode !== 'guest') return;
+
+    party.remote = payload;
+    party.remoteAt = performance.now();
+    party.connected = true;
+    party.disconnectedAt = 0;
+    party.allowGuestControl = Boolean(payload.allowGuestControl);
+    document.body.classList.toggle('party-guest-locked', !party.allowGuestControl);
+
+    state.isPlaying = Boolean(payload.isPlaying);
+    updatePlayerUI();
+    dom.playerThumbnail.classList.toggle('paused', !state.isPlaying);
+    dom.btnPlay.classList.toggle('is-playing', state.isPlaying);
+    document.body.classList.toggle('audio-playing', state.isPlaying);
+
+    syncGuestPlayback();
+    renderPartyPanel();
+    updatePartyPill();
+  }
+
+  // Where the host's playhead should be *now*, extrapolated from the last
+  // report. Latency on a LAN is small, so this lands within a few ms.
+  function partyTargetPosition() {
+    const remote = party.remote;
+    if (!remote) return 0;
+    const elapsed = remote.isPlaying ? (performance.now() - party.remoteAt) / 1000 : 0;
+    const target = (remote.position || 0) + elapsed;
+    return remote.duration ? Math.min(target, remote.duration) : target;
+  }
+
+  function syncGuestPlayback() {
+    if (party.mode !== 'guest' || !party.guest) return;
+
+    // EventSource retries a dropped connection forever. Give a host that is
+    // simply gone a generous window, then stop pretending we are in a party.
+    if (party.disconnectedAt && performance.now() - party.disconnectedAt > PARTY_GIVE_UP_MS) {
+      partyDropped('lost');
+      return;
+    }
+
+    const remote = party.remote;
+
+    if (!remote || !remote.song) {
+      if (!audio.paused) audio.pause();
+      if (state.currentSong) clearPartyTrack();
+      return;
+    }
+
+    if (remote.song.id !== party.remoteSongId) {
+      loadPartyTrack(remote.song);
+      return;
+    }
+
+    if (remote.isPlaying) {
+      if (audio.paused && audio.readyState > 0) audio.play().catch(() => { /* still buffering */ });
+    } else if (!audio.paused) {
+      audio.pause();
+      audio.playbackRate = 1;
+    }
+
+    if (!audio.duration || audio.readyState < 2) return;
+
+    const drift = audio.currentTime - partyTargetPosition();
+    if (Math.abs(drift) > PARTY_HARD_SEEK) {
+      audio.currentTime = Math.max(0, Math.min(partyTargetPosition(), audio.duration - 0.05));
+      audio.playbackRate = 1;
+    } else if (remote.isPlaying && Math.abs(drift) > PARTY_NUDGE) {
+      // Easing back is inaudible; a seek every few seconds is not.
+      audio.playbackRate = drift > 0 ? 0.97 : 1.03;
+    } else if (audio.playbackRate !== 1) {
+      audio.playbackRate = 1;
+    }
+  }
+
+  function loadPartyTrack(songPayload) {
+    party.remoteSongId = songPayload.id;
+
+    state.currentSong = {
+      id: `party:${songPayload.id}`,
+      title: songPayload.title || 'Unknown track',
+      channel: songPayload.channel || '',
+      duration: songPayload.duration || 0,
+      thumbnail: partyCoverUrl(songPayload)
+    };
+    state.currentQueue = [];
+    state.currentQueueIndex = -1;
+    state.playingFromView = null;
+
+    _currentPlayId = ++_playId;
+    _isTransitioning = true;
+
+    // The host sends permissive CORS headers, so an anonymous request keeps
+    // the stream untainted — a tainted one would play back silent through the
+    // visualizer's audio graph.
+    audio.crossOrigin = 'anonymous';
+    // Drift is corrected by easing the rate, which must not bend the pitch.
+    audio.preservesPitch = true;
+    audio.src = `${party.guest.base}/api/track/${encodeURIComponent(songPayload.id)}/audio?t=${party.guest.listenerId}`;
+    audio.load();
+
+    updatePlayerSongInfo();
+    renderSongList();
+
+    const onReady = () => {
+      audio.removeEventListener('loadedmetadata', onReady);
+      if (party.mode !== 'guest' || party.remoteSongId !== songPayload.id) return;
+      _isTransitioning = false;
+      try {
+        audio.currentTime = Math.max(0, partyTargetPosition());
+      } catch { /* the element rejected an early seek; the sync loop retries */ }
+      if (party.remote?.isPlaying) audio.play().catch(() => { /* still buffering */ });
+    };
+    audio.addEventListener('loadedmetadata', onReady);
+
+    initVisualizer();
+  }
+
+  // Drop whatever the party had loaded and hand the element back to the
+  // local library in a clean state.
+  function clearPartyTrack() {
+    party.remoteSongId = null;
+    _isTransitioning = false;
+    state.currentSong = null;
+    state.currentQueue = [];
+    state.currentQueueIndex = -1;
+    state.playingFromView = null;
+    state.isPlaying = false;
+
+    audio.pause();
+    audio.playbackRate = 1;
+    audio.removeAttribute('src');
+    audio.removeAttribute('crossorigin');
+    audio.load();
+
+    dom.playerThumbnail.classList.add('paused');
+    dom.btnPlay.classList.remove('is-playing');
+    document.body.classList.remove('audio-playing');
+    dom.progressFill.style.width = '0%';
+    dom.progressThumb.style.left = '0%';
+    dom.timeCurrent.textContent = '0:00';
+    dom.timeTotal.textContent = '0:00';
+
+    updatePlayerUI();
+    updatePlayerSongInfo();
+    renderSongList();
+  }
+
+  async function leaveParty({ notifyHost = true } = {}) {
+    const guest = party.guest;
+
+    closePartyStream();
+    clearInterval(party.syncTimer);
+    party.syncTimer = null;
+
+    if (guest && notifyHost) {
+      // Best effort: the host also prunes us when the event stream drops.
+      fetch(`${guest.base}/api/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listenerId: guest.listenerId })
+      }).catch(() => { /* host already gone */ });
+    }
+
+    party.guest = null;
+    party.remote = null;
+    party.listeners = [];
+    party.connected = false;
+    party.disconnectedAt = 0;
+    document.body.classList.remove('party-guest-locked');
+
+    clearPartyTrack();
+    setPartyMode('off');
+    startPartyBrowse();
+  }
+
+  function partyDropped(reason) {
+    if (party.mode !== 'guest') return;
+    const hostName = party.guest?.hostName || 'The host';
+    leaveParty({ notifyHost: false });
+
+    const messages = {
+      removed: { title: 'You were removed from the party', detail: `${hostName} ended your session` },
+      ended: { title: 'The party ended', detail: `${hostName} closed the party` },
+      lost: { title: 'Disconnected from the party', detail: 'The host is no longer reachable' }
+    };
+    const message = messages[reason] || messages.lost;
+    showToast({ type: 'info', icon: 'info', eyebrow: 'Listen together', ...message });
+  }
+
+  // Guests can ask the host to change the track when the host allows it.
+  function partyGuestRequest(action, value = 0) {
+    if (party.mode !== 'guest' || !party.guest) return;
+
+    if (!party.allowGuestControl) {
+      showToast({
+        type: 'info',
+        icon: 'info',
+        eyebrow: 'Listening party',
+        title: `${party.guest.hostName} is in charge of playback`,
+        detail: 'Your volume is still your own'
+      });
+      return;
+    }
+
+    fetch(`${party.guest.base}/api/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listenerId: party.guest.listenerId, action, value })
+    }).catch(() => { /* the sync loop will surface a real disconnect */ });
+  }
+
+  // ── Discovery ─────────────────────────────────────────────────
+  // Only listen for announcements while the panel is actually open on the
+  // "not in a party" view — there is nothing to show otherwise.
+  async function startPartyBrowse() {
+    if (party.browsing || party.mode !== 'off') return;
+    if (!dom.partyOverlay.classList.contains('visible')) return;
+    party.browsing = true;
+    await window.api.partyBrowseStart();
+  }
+
+  async function stopPartyBrowse() {
+    if (!party.browsing) return;
+    party.browsing = false;
+    party.discovered = [];
+    await window.api.partyBrowseStop();
+  }
+
+  // ── Party UI ──────────────────────────────────────────────────
+  function setPartyMode(mode) {
+    party.mode = mode;
+    dom.partyOverlay.setAttribute('data-party-mode', mode);
+    dom.partyHeading.textContent = mode === 'host'
+      ? 'Your listening party'
+      : (mode === 'guest' ? 'Listening together' : 'Listen Together');
+    if (mode !== 'guest') document.body.classList.remove('party-guest-locked');
+    updatePartyPill();
+    renderPartyPanel();
+  }
+
+  function updatePartyPill() {
+    const inParty = party.mode !== 'off';
+    document.body.classList.toggle('in-party', inParty);
+    if (!inParty) return;
+
+    if (party.mode === 'host') {
+      const count = party.listeners.length;
+      dom.partyPillText.textContent = count === 1 ? '1 listener' : `${count} listeners`;
+      dom.partyPill.classList.remove('is-disconnected');
+    } else {
+      dom.partyPillText.textContent = party.connected
+        ? (party.guest?.partyName || 'In a party')
+        : 'Reconnecting…';
+      dom.partyPill.classList.toggle('is-disconnected', !party.connected);
+    }
+  }
+
+  function partyInitial(name) {
+    return (String(name || '?').trim()[0] || '?').toUpperCase();
+  }
+
+  function partyRow({ name, sub, tag, action }) {
+    const row = document.createElement('div');
+    row.className = 'party-row';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'party-row-avatar';
+    avatar.textContent = partyInitial(name);
+    row.appendChild(avatar);
+
+    const text = document.createElement('div');
+    text.className = 'party-row-text';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'party-row-name';
+    nameEl.textContent = name;
+    text.appendChild(nameEl);
+    if (sub) {
+      const subEl = document.createElement('span');
+      subEl.className = 'party-row-sub';
+      subEl.textContent = sub;
+      text.appendChild(subEl);
+    }
+    row.appendChild(text);
+
+    if (tag) {
+      const tagEl = document.createElement('span');
+      tagEl.className = 'party-row-tag';
+      tagEl.textContent = tag;
+      row.appendChild(tagEl);
+    }
+
+    if (action) {
+      const button = document.createElement('button');
+      button.className = 'party-row-action' + (action.danger ? ' is-danger' : '');
+      button.textContent = action.label;
+      button.addEventListener('click', action.onClick);
+      row.appendChild(button);
+    }
+
+    return row;
+  }
+
+  function renderPartyEmpty(container, message) {
+    const empty = document.createElement('div');
+    empty.className = 'party-empty';
+    empty.textContent = message;
+    container.appendChild(empty);
+  }
+
+  function renderPartyPanel() {
+    // Discovered parties (only meaningful while we are not in one).
+    const discoveredList = dom.partyDiscoveredList;
+    discoveredList.innerHTML = '';
+    if (!party.discovered.length) {
+      renderPartyEmpty(discoveredList, party.browsing
+        ? 'No parties found yet. Ask a friend to start one.'
+        : 'Not scanning right now.');
+    } else {
+      party.discovered.forEach(found => {
+        const count = found.listeners === 1 ? '1 listener' : `${found.listeners} listeners`;
+        discoveredList.appendChild(partyRow({
+          name: found.name,
+          sub: `${found.hostName} · ${count}`,
+          tag: found.requiresCode ? 'Code' : null,
+          action: {
+            label: 'Join',
+            onClick: () => joinDiscoveredParty(found)
+          }
+        }));
+      });
+    }
+    dom.partyScanning.style.display = party.browsing ? '' : 'none';
+
+    // Host view.
+    if (party.mode === 'host' && party.host) {
+      dom.partyInviteAddress.textContent = party.host.invite;
+      dom.partyInviteCodeRow.style.display = party.host.joinCode ? '' : 'none';
+      dom.partyInviteCode.textContent = party.host.joinCode || '';
+      dom.partyGuestControl.checked = party.allowGuestControl;
+      dom.partyHostCount.textContent = String(party.listeners.length);
+
+      const list = dom.partyListenerList;
+      list.innerHTML = '';
+      if (!party.listeners.length) {
+        renderPartyEmpty(list, 'Nobody has joined yet. Share the address above.');
+      } else {
+        party.listeners.forEach(listener => {
+          list.appendChild(partyRow({
+            name: listener.name,
+            sub: listener.connected ? 'Listening' : 'Connecting…',
+            action: {
+              label: 'Remove',
+              danger: true,
+              onClick: () => window.api.partyKick(listener.id)
+            }
+          }));
+        });
+      }
+    }
+
+    // Guest view.
+    if (party.mode === 'guest' && party.guest) {
+      dom.partyGuestName.textContent = party.guest.partyName;
+      dom.partyGuestStatus.textContent = party.connected
+        ? `Hosted by ${party.guest.hostName}`
+        : 'Reconnecting to the host…';
+      dom.partyConnection.classList.toggle('is-offline', !party.connected);
+      dom.partyGuestHint.textContent = party.allowGuestControl
+        ? 'The host has opened up the controls — play, pause and skip apply to everyone.'
+        : 'The host controls what plays. Your volume stays your own.';
+      dom.partyGuestCount.textContent = String(party.listeners.length);
+
+      const list = dom.partyGuestListenerList;
+      list.innerHTML = '';
+      const rows = [{ id: '__host__', name: party.guest.hostName, host: true }, ...party.listeners];
+      rows.forEach(listener => {
+        list.appendChild(partyRow({
+          name: listener.name,
+          sub: listener.host ? 'Host' : (listener.connected === false ? 'Connecting…' : 'Listening'),
+          tag: listener.id === party.guest.listenerId ? 'You' : null
+        }));
+      });
+    }
+  }
+
+  function openPartyPanel() {
+    dom.partyOverlay.classList.add('visible');
+    if (party.mode === 'off') {
+      startPartyBrowse();
+      dom.partyNameInput.focus();
+    }
+    renderPartyPanel();
+  }
+
+  function closePartyPanel() {
+    dom.partyOverlay.classList.remove('visible');
+    stopPartyBrowse();
+    renderPartyPanel();
+  }
+
+  function setupPartyListeners() {
+    dom.btnParty.addEventListener('click', openPartyPanel);
+    dom.partyPill.addEventListener('click', openPartyPanel);
+    dom.partyClose.addEventListener('click', closePartyPanel);
+    dom.partyOverlay.addEventListener('click', (e) => {
+      if (e.target === dom.partyOverlay) closePartyPanel();
+    });
+
+    dom.btnPartyHost.addEventListener('click', startPartyHost);
+    dom.btnPartyEnd.addEventListener('click', endPartyHost);
+    dom.btnPartyLeave.addEventListener('click', () => leaveParty());
+
+    dom.btnPartyJoin.addEventListener('click', () => {
+      const parsed = parsePartyAddress(dom.partyAddressInput.value);
+      if (!parsed) {
+        showToast({
+          type: 'error',
+          icon: 'error',
+          eyebrow: 'Listen together',
+          title: 'That address does not look right',
+          detail: 'Try something like 192.168.1.42:8420'
+        });
+        return;
+      }
+      joinParty({ ...parsed, code: dom.partyCodeInput.value });
+    });
+
+    dom.partyAddressInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') dom.btnPartyJoin.click();
+    });
+    dom.partyCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') dom.btnPartyJoin.click();
+    });
+
+    dom.btnPartyCopy.addEventListener('click', async () => {
+      if (!party.host) return;
+      const invite = party.host.joinCode
+        ? `${party.host.invite} (code ${party.host.joinCode})`
+        : party.host.invite;
+      try {
+        await navigator.clipboard.writeText(invite);
+        showToast({ type: 'success', icon: 'success', eyebrow: 'Listen together', title: 'Invite copied', detail: invite });
+      } catch {
+        showToast({ type: 'error', icon: 'error', eyebrow: 'Listen together', title: 'Could not copy the invite' });
+      }
+    });
+
+    dom.partyGuestControl.addEventListener('change', async () => {
+      const result = await window.api.partySetGuestControl(dom.partyGuestControl.checked);
+      if (result?.ok) party.allowGuestControl = result.allowGuestControl;
+      renderPartyPanel();
+    });
+
+    window.api.onPartyDiscovered(({ parties }) => {
+      party.discovered = parties || [];
+      renderPartyPanel();
+    });
+
+    window.api.onPartyListeners(({ listeners }) => {
+      if (party.mode !== 'host') return;
+      party.listeners = listeners || [];
+      renderPartyPanel();
+      updatePartyPill();
+    });
+
+    window.api.onPartyRequest(({ action, value, listener }) => {
+      if (party.mode !== 'host') return;
+
+      const labels = { toggle: 'changed play/pause', next: 'skipped to the next track', prev: 'went back a track', seek: 'jumped the playhead' };
+      switch (action) {
+        case 'toggle': togglePlay(); break;
+        case 'next': playNext(); break;
+        case 'prev': playPrev(); break;
+        case 'seek':
+          if (audio.duration) audio.currentTime = Math.max(0, Math.min(value, audio.duration));
+          break;
+      }
+      broadcastPartyState(true);
+
+      showToast({
+        type: 'info',
+        icon: 'music',
+        eyebrow: 'Listening party',
+        title: listener.name,
+        detail: labels[action] || 'changed playback'
+      });
+    });
   }
 
   // ── Event Listeners ─────────────────────────────────────────────
@@ -2726,16 +3607,22 @@
           if (e.ctrlKey) {
             e.preventDefault();
             playNext();
+          } else if (isPartyGuest()) {
+            partyGuestRequest('seek', partyTargetPosition() + 5);
           } else if (audio.duration) {
             audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+            broadcastPartyState(true);
           }
           break;
         case 'ArrowLeft':
           if (e.ctrlKey) {
             e.preventDefault();
             playPrev();
+          } else if (isPartyGuest()) {
+            partyGuestRequest('seek', Math.max(0, partyTargetPosition() - 5));
           } else if (audio.duration) {
             audio.currentTime = Math.max(0, audio.currentTime - 5);
+            broadcastPartyState(true);
           }
           break;
         case 'ArrowUp':

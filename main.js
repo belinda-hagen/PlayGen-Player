@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
+const party = require('./party');
 
 // ── Paths ──────────────────────────────────────────────────────────
 const userDataPath = app.getPath('userData');
@@ -290,8 +291,11 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopDownloadsWatcher();
+  party.shutdown();
   if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', () => party.shutdown());
 
 // ── IPC: Window Controls ──────────────────────────────────────────
 ipcMain.on('window-minimize', () => mainWindow?.minimize());
@@ -874,7 +878,7 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
 
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
-  return { miniPlayerOnMinimize: true, theme: 'rose', ...(db.settings || {}) };
+  return { miniPlayerOnMinimize: true, theme: 'rose', displayName: '', ...(db.settings || {}) };
 });
 
 ipcMain.handle('save-settings', (event, settings) => {
@@ -908,3 +912,33 @@ ipcMain.on('mini-player-command', (event, command) => {
     }
   }
 });
+
+// ── IPC: Listen Together ──────────────────────────────────────────
+// The party server lives in the main process; the renderer drives it and
+// receives listener/discovery updates back over these channels.
+function sendToRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+party.setHooks({
+  resolveSong: (songId) => (db.songs || []).find(s => s.id === songId) || null,
+  onListeners: (listeners) => sendToRenderer('party-listeners', { listeners }),
+  onRequest: (request) => sendToRenderer('party-request', request)
+});
+
+ipcMain.handle('party-start', (event, options = {}) => party.startHost(options));
+
+ipcMain.handle('party-stop', () => party.stopHost());
+ipcMain.handle('party-status', () => party.getHostStatus());
+ipcMain.handle('party-set-guest-control', (event, allow) => party.setAllowGuestControl(allow));
+ipcMain.handle('party-kick', (event, listenerId) => party.kickListener(listenerId));
+ipcMain.on('party-state', (event, playerState) => party.updateState(playerState));
+
+ipcMain.handle('party-browse-start', () => {
+  return party.startBrowsing((list) => sendToRenderer('party-discovered', { parties: list }));
+});
+
+ipcMain.handle('party-browse-stop', () => party.stopBrowsing());
+ipcMain.handle('party-local-addresses', () => party.getLocalAddresses().map(a => a.address));

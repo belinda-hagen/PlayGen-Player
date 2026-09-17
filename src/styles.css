@@ -2298,3 +2298,376 @@ body.file-dragging .playlist-list .nav-item.drag-over {
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ── Listen Together ─────────────────────────────────────────────── */
+.party-pill {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--accent-gradient-soft);
+  color: var(--text-strong);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color var(--t-base), box-shadow var(--t-base), transform var(--t-fast);
+}
+
+body.in-party .party-pill {
+  display: inline-flex;
+}
+
+.party-pill:hover {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px var(--accent-active-glow);
+}
+
+.party-pill:active {
+  transform: scale(0.97);
+}
+
+.party-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 0 var(--toast-glow);
+  animation: party-pulse 2.4s var(--ease) infinite;
+}
+
+.party-pill.is-disconnected .party-pill-dot {
+  background: var(--warning);
+  animation: none;
+}
+
+@keyframes party-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--toast-glow); }
+  70%  { box-shadow: 0 0 0 7px rgba(0, 0, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+}
+
+.party-panel {
+  width: min(480px, calc(100vw - 40px));
+}
+
+.party-panel .settings-body {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+}
+
+/* Only the section matching the current party mode is shown. */
+.party-state { display: none; }
+.party-overlay[data-party-mode="off"]   .party-state[data-party-state="off"],
+.party-overlay[data-party-mode="host"]  .party-state[data-party-state="host"],
+.party-overlay[data-party-mode="guest"] .party-state[data-party-state="guest"] {
+  display: block;
+}
+
+.party-state .settings-group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.party-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  margin-top: 16px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background var(--t-base), border-color var(--t-base), color var(--t-base), transform var(--t-fast);
+}
+
+.party-btn:active { transform: scale(0.985); }
+
+.party-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.party-btn-primary {
+  background: var(--button-accent);
+  color: #fff;
+  box-shadow: 0 8px 20px var(--button-accent-shadow);
+}
+
+.party-btn-primary:hover:not(:disabled) { background: var(--button-accent-hover); }
+
+.party-btn-secondary {
+  width: auto;
+  height: 44px;
+  margin-top: 0;
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text-main);
+}
+
+.party-btn-secondary:hover:not(:disabled) {
+  border-color: #fff;
+  color: var(--text-strong);
+}
+
+.party-btn-danger {
+  border-color: rgba(241, 94, 108, 0.4);
+  background: rgba(241, 94, 108, 0.12);
+  color: var(--danger);
+}
+
+.party-btn-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: rgba(241, 94, 108, 0.2);
+}
+
+.party-scanning {
+  margin-left: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.party-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-hover);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.party-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.party-empty {
+  padding: 14px;
+  border: 1px dashed var(--border-soft);
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+}
+
+.party-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.party-row-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.party-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.party-row-name {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.party-row-sub {
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.party-row-action {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color var(--t-base), color var(--t-base), background var(--t-base);
+}
+
+.party-row-action:hover {
+  border-color: #fff;
+  color: var(--text-strong);
+}
+
+.party-row-action.is-danger:hover {
+  border-color: var(--danger);
+  background: rgba(241, 94, 108, 0.14);
+  color: var(--danger);
+}
+
+.party-row-tag {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.party-join-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-join-row .modal-input { margin-top: 0; }
+.party-code-input { width: 82px; flex-shrink: 0; text-align: center; }
+
+.party-invite {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.party-invite + .party-invite { margin-top: 8px; }
+
+.party-invite-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.party-invite-label {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.party-invite-value {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  user-select: text;
+}
+
+.party-invite-code .party-invite-value {
+  font-size: 22px;
+  letter-spacing: 0.16em;
+}
+
+.party-invite .party-btn-secondary { height: 34px; }
+
+.party-connection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--accent-gradient-soft);
+}
+
+.party-connection-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: party-pulse 2.4s var(--ease) infinite;
+}
+
+.party-connection.is-offline .party-connection-dot {
+  background: var(--warning);
+  animation: none;
+}
+
+.party-connection-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.party-connection-text strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.party-connection-text span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Guests don't own the transport unless the host hands it over. */
+body.party-guest-locked .btn-play,
+body.party-guest-locked .btn-next,
+body.party-guest-locked .btn-prev,
+body.party-guest-locked .btn-shuffle,
+body.party-guest-locked .btn-repeat,
+body.party-guest-locked .btn-clear-track {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+body.party-guest-locked .progress-track {
+  pointer-events: none;
+}
+
+body.party-guest-locked .progress-thumb {
+  display: none;
+}

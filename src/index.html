@@ -60,6 +60,16 @@
           <input type="text" id="search-input" placeholder="Search library" spellcheck="false">
         </div>
       </div>
+      <button class="party-pill" id="party-pill" title="Listening party">
+        <span class="party-pill-dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span class="party-pill-text" id="party-pill-text">Party</span>
+      </button>
     </div>
 
     <div class="download-progress-container" id="download-progress-container">
@@ -105,6 +115,15 @@
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
             <span>Open Downloads</span>
+          </button>
+          <button class="btn-open-folder" id="btn-party" title="Listen together with friends">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span>Listen Together</span>
           </button>
           <button class="btn-open-folder" id="btn-settings" title="Settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
@@ -353,6 +372,122 @@
           </div>
           <p class="settings-hint">Changes the app accent, buttons, progress bars, and visualizer colors.</p>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-overlay party-overlay" id="party-overlay" data-party-mode="off">
+    <div class="settings-panel party-panel">
+      <div class="settings-header">
+        <h3 id="party-heading">Listen Together</h3>
+        <button class="settings-close" id="party-close">x</button>
+      </div>
+      <div class="settings-body">
+
+        <!-- ── Not in a party ─────────────────────────────────── -->
+        <div class="party-state" data-party-state="off">
+          <div class="settings-group">
+            <h4 class="settings-group-title">Host a party</h4>
+            <label class="edit-field-label" for="party-name-input">Your name</label>
+            <input type="text" class="modal-input" id="party-name-input" placeholder="Your name" maxlength="32" spellcheck="false">
+            <label class="settings-toggle">
+              <span class="settings-label">Require a join code</span>
+              <div class="toggle-switch">
+                <input type="checkbox" id="party-require-code">
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+            <button class="party-btn party-btn-primary" id="btn-party-host">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M19 8v6"/><path d="M22 11h-6"/>
+              </svg>
+              <span>Start a party</span>
+            </button>
+            <p class="settings-hint">Guests stream the music straight from your library, so they can hear tracks they don&rsquo;t have themselves.</p>
+          </div>
+
+          <div class="settings-group">
+            <h4 class="settings-group-title">
+              Parties on your network
+              <span class="party-scanning" id="party-scanning">scanning…</span>
+            </h4>
+            <div class="party-list" id="party-discovered-list"></div>
+          </div>
+
+          <div class="settings-group">
+            <h4 class="settings-group-title">Join by address</h4>
+            <div class="party-join-row">
+              <input type="text" class="modal-input" id="party-address-input" placeholder="192.168.1.42:8420" spellcheck="false" autocomplete="off">
+              <input type="text" class="modal-input party-code-input" id="party-code-input" placeholder="Code" maxlength="4" inputmode="numeric" autocomplete="off">
+              <button class="party-btn party-btn-secondary" id="btn-party-join">Join</button>
+            </div>
+            <p class="settings-hint">Everyone needs to be on the same network (or the same VPN). Windows may ask you to allow PlayGen through the firewall the first time you host.</p>
+          </div>
+        </div>
+
+        <!-- ── Hosting ────────────────────────────────────────── -->
+        <div class="party-state" data-party-state="host">
+          <div class="settings-group">
+            <h4 class="settings-group-title">Invite</h4>
+            <div class="party-invite">
+              <div class="party-invite-main">
+                <span class="party-invite-label">Address</span>
+                <span class="party-invite-value" id="party-invite-address">—</span>
+              </div>
+              <button class="party-btn party-btn-secondary" id="btn-party-copy">Copy</button>
+            </div>
+            <div class="party-invite party-invite-code" id="party-invite-code-row">
+              <div class="party-invite-main">
+                <span class="party-invite-label">Join code</span>
+                <span class="party-invite-value" id="party-invite-code">—</span>
+              </div>
+            </div>
+            <p class="settings-hint">Friends open <strong>Listen Together</strong> and pick your party from the list &mdash; or type this address in.</p>
+          </div>
+
+          <div class="settings-group">
+            <h4 class="settings-group-title">Listeners <span class="party-count" id="party-host-count">0</span></h4>
+            <div class="party-list" id="party-listener-list"></div>
+            <label class="settings-toggle">
+              <span class="settings-label">Let guests control playback</span>
+              <div class="toggle-switch">
+                <input type="checkbox" id="party-guest-control">
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+            <p class="settings-hint">When on, guests can play, pause, skip and seek for everyone.</p>
+          </div>
+
+          <div class="settings-group">
+            <button class="party-btn party-btn-danger" id="btn-party-end">End party</button>
+          </div>
+        </div>
+
+        <!-- ── Guest ──────────────────────────────────────────── -->
+        <div class="party-state" data-party-state="guest">
+          <div class="settings-group">
+            <div class="party-connection" id="party-connection">
+              <span class="party-connection-dot"></span>
+              <div class="party-connection-text">
+                <strong id="party-guest-name">Party</strong>
+                <span id="party-guest-status">Connecting…</span>
+              </div>
+            </div>
+            <p class="settings-hint" id="party-guest-hint">The host controls what plays. Your volume stays your own.</p>
+          </div>
+
+          <div class="settings-group">
+            <h4 class="settings-group-title">Listeners <span class="party-count" id="party-guest-count">0</span></h4>
+            <div class="party-list" id="party-guest-listener-list"></div>
+          </div>
+
+          <div class="settings-group">
+            <button class="party-btn party-btn-danger" id="btn-party-leave">Leave party</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
