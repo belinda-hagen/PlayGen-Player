@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn, execSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 // ── Paths ──────────────────────────────────────────────────────────
 const userDataPath = app.getPath('userData');
@@ -83,16 +83,22 @@ function getBundledBinPath(name) {
 
 function findExecutable(name) {
   // 1. Check bundled binaries first
-  const bundledPath = getBundledBinPath(`${name}.exe`);
+  const executableName = process.platform === 'win32' ? `${name}.exe` : name;
+  const bundledPath = getBundledBinPath(executableName);
   if (fs.existsSync(bundledPath)) {
     return bundledPath;
   }
 
   // 2. Check system PATH
-  try {
-    execSync(`where ${name}`, { stdio: 'ignore' });
+  const pathLookupCommand = process.platform === 'win32' ? 'where' : 'which';
+  const lookup = spawnSync(pathLookupCommand, [name], { stdio: 'ignore', windowsHide: true });
+  if (lookup.status === 0) {
     return name; // available on PATH
-  } catch { /* not on PATH */ }
+  }
+
+  if (process.platform !== 'win32') {
+    return null;
+  }
 
   // 3. Search common winget install locations
   const wingetPkgs = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Packages');

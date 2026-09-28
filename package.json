@@ -7,7 +7,9 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "npx electron-packager . PlayGen --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/playgen-icon.ico --ignore=\"dist|.git|.gitignore\" --asar --extra-resource=assets/bin",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis --x64",
+    "dist:linux": "electron-builder --linux AppImage --x64"
   },
   "keywords": [
     "electron",
@@ -28,13 +30,31 @@
       "preload.js",
       "src/**/*",
       "assets/**/*",
+      "!assets/bin/**/*",
       "package.json"
     ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "assets/playgen-icon.ico"
+      "icon": "assets/playgen-icon.ico",
+      "extraResources": [
+        {
+          "from": "assets/bin",
+          "to": "bin",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/icons",
+      "category": "AudioVideo"
     },
     "nsis": {
       "oneClick": true,
@@ -45,8 +65,8 @@
     }
   },
   "devDependencies": {
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "electron-packager": "^17.1.2"
   }
 }

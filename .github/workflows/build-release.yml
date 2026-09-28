@@ -1,0 +1,124 @@
+name: Build and Draft Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            script: dist:win
+            artifact: playgen-windows
+            asset_glob: |
+              dist/*.exe
+              dist/*.blockmap
+              dist/latest.yml
+          - name: Linux
+            os: ubuntu-latest
+            script: dist:linux
+            artifact: playgen-linux
+            asset_glob: |
+              dist/*.AppImage
+              dist/*.blockmap
+              dist/latest-linux.yml
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfuse2 || sudo apt-get install -y --no-install-recommends libfuse2t64
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.asset_glob }}
+          if-no-files-found: error
+
+  draft-release:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          title="PlayGen ${tag}"
+
+          {
+            echo "Automated draft release for commit ${GITHUB_SHA}."
+            echo
+            echo "Artifacts:"
+            find release-assets -type f -printf '- %f\n' | sort
+          } > release-notes.md
+
+          if gh release view "$tag" --json isDraft --jq '.isDraft' > release-state.txt 2>/dev/null; then
+            if [ "$(cat release-state.txt)" != "true" ]; then
+              echo "::error::Release ${tag} already exists and is published. Bump package.json version before creating another draft."
+              exit 1
+            fi
+
+            gh release edit "$tag" --draft --title "$title" --notes-file release-notes.md
+
+            existing_assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+            if [ -n "$existing_assets" ]; then
+              while IFS= read -r asset; do
+                gh release delete-asset "$tag" "$asset" --yes
+              done <<< "$existing_assets"
+            fi
+          else
+            gh release create "$tag" --draft --title "$title" --notes-file release-notes.md --target "$GITHUB_SHA"
+          fi
+
+          mapfile -d '' assets < <(find release-assets -type f -print0)
+          gh release upload "$tag" "${assets[@]}" --clobber
