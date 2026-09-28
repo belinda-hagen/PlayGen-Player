@@ -9,7 +9,7 @@
   const state = {
     songs: [],
     playlists: [],
-    currentView: 'all',         // 'all' or playlist id
+    currentView: 'home',        // 'home', 'all' or playlist id
     playingFromView: null,       // view where current song playback started
     currentSong: null,           // song object
     currentQueue: [],            // array of song objects (current play queue)
@@ -76,12 +76,18 @@
     downloadProgressFill: $('#download-progress-fill'),
 
     // Sidebar
+    navHome: $('#nav-home'),
     navAll: $('#nav-all'),
     playlistList: $('#playlist-list'),
     btnNewPlaylist: $('#btn-new-playlist'),
     btnOpenFolder: $('#btn-open-folder'),
 
     // Main area
+    homeView: $('#home-view'),
+    homeTitle: $('#home-title'),
+    homeSubtitle: $('#home-subtitle'),
+    homeGrid: $('#home-grid'),
+    viewHero: $('#view-hero'),
     viewTitle: $('#view-title'),
     songCount: $('#song-count'),
     viewHeaderRight: $('#view-header-right'),
@@ -569,6 +575,9 @@
       if (rect.bottom > window.innerHeight) {
         dom.contextMenu.style.top = (y - rect.height) + 'px';
       }
+      // Open submenus to the left when there's no room on the right.
+      const finalRect = dom.contextMenu.getBoundingClientRect();
+      dom.contextMenu.classList.toggle('flip-submenu', finalRect.right + 260 > window.innerWidth);
     });
   }
 
@@ -578,7 +587,7 @@
 
   document.addEventListener('click', hideContextMenu);
   document.addEventListener('contextmenu', (e) => {
-    if (!e.target.closest('.song-item') && !e.target.closest('.nav-item[data-playlist-id]')) {
+    if (!e.target.closest('.song-item') && !e.target.closest('.nav-item[data-playlist-id]') && !e.target.closest('.home-card')) {
       hideContextMenu();
     }
   });
@@ -620,20 +629,15 @@
     updateShuffleUI();
     updateRepeatUI();
 
-    // Restore session
-    if (session?.lastPlaylistId) {
-      const pl = state.playlists.find(p => p.id === session.lastPlaylistId);
-      if (pl) {
-        state.currentView = pl.id;
-        highlightActiveNav();
-        renderSongList();
-      }
-    }
+    // Restore session. The app always opens on Home; the last playlist only
+    // decides which queue the restored song continues in.
     if (session?.lastSongId) {
       const song = state.songs.find(s => s.id === session.lastSongId);
       if (song) {
+        const lastPlaylist = state.playlists.find(p => p.id === session.lastPlaylistId);
         state.currentSong = song;
-        buildQueue();
+        state.playingFromView = lastPlaylist?.songs.includes(song.id) ? lastPlaylist.id : 'all';
+        buildQueue(state.playingFromView);
         state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === song.id);
         const filePath = await window.api.getSongPath(song.id);
         if (filePath) {
@@ -727,6 +731,10 @@
 
       dom.playlistList.appendChild(item);
     });
+
+    // Home mirrors the playlist list, so keep its cards in sync with any
+    // create / rename / add-song change that re-renders the sidebar.
+    if (state.currentView === 'home') renderHome();
   }
 
   function showPlaylistDelayMenu(x, y, pl) {
@@ -743,6 +751,7 @@
       { label: 'Play All', action: () => playPlaylist(pl.id) },
       { divider: true },
       { label: 'Export to folder', action: () => exportPlaylist(pl) },
+      { label: 'Change cover', submenu: getCoverMenuItems(pl) },
       {
         label: 'Next song delay',
         submenu: NEXT_DELAY_OPTIONS.map(option => ({
@@ -757,7 +766,9 @@
 
   function highlightActiveNav() {
     $$('.nav-item').forEach(n => n.classList.remove('active'));
-    if (state.currentView === 'all') {
+    if (state.currentView === 'home') {
+      dom.navHome.classList.add('active');
+    } else if (state.currentView === 'all') {
       dom.navAll.classList.add('active');
     } else {
       const el = $(`.nav-item[data-playlist-id="${state.currentView}"]`);
@@ -863,8 +874,217 @@
     img.src = url;
   }
 
+  // ── Playlist Covers ─────────────────────────────────────────────
+  // Cover precedence: uploaded image → pinned song's artwork → first song
+  // with artwork → none (gradient placeholder).
+  function getPlaylistSongs(pl) {
+    return pl.songs.map(id => state.songs.find(s => s.id === id)).filter(Boolean);
+  }
+
+  function getChosenPlaylistCover(pl) {
+    if (pl.cover) return pl.cover;
+    if (pl.coverSongId) {
+      const song = state.songs.find(s => s.id === pl.coverSongId);
+      if (song?.thumbnail) return song.thumbnail;
+    }
+    return null;
+  }
+
+  function getPlaylistCover(pl) {
+    return getChosenPlaylistCover(pl) || getPlaylistSongs(pl).find(s => s.thumbnail)?.thumbnail || null;
+  }
+
+  // Backslashes in Windows file:// URLs would be read as escapes inside CSS url("").
+  function cssUrl(url) {
+    return url.replace(/\\/g, '/').replace(/"/g, '%22');
+  }
+
+  function getCoverMenuItems(pl) {
+    const items = [{ label: 'Choose image…', action: () => choosePlaylistCover(pl) }];
+    getPlaylistSongs(pl).filter(s => s.thumbnail).slice(0, 12).forEach(song => {
+      const current = !pl.cover && pl.coverSongId === song.id;
+      items.push({
+        label: `Use “${song.title}”${current ? ' (current)' : ''}`,
+        action: () => setPlaylistCoverSong(pl, song.id)
+      });
+    });
+    if (pl.cover || pl.coverSongId) {
+      items.push({ label: 'Reset to first song', action: () => setPlaylistCoverSong(pl, null) });
+    }
+    return items;
+  }
+
+  function showCoverMenu(x, y, pl) {
+    showContextMenu(x, y, getCoverMenuItems(pl));
+  }
+
+  async function reloadPlaylistsAfterCoverChange() {
+    state.playlists = await window.api.getPlaylists();
+    renderSidebar();
+    renderSongList();
+  }
+
+  async function choosePlaylistCover(pl) {
+    const result = await window.api.choosePlaylistCover(pl.id);
+    if (!result?.success) {
+      if (result?.error && result.error !== 'Cancelled') {
+        showToast({ type: 'error', icon: 'playlist', eyebrow: 'Cover not changed', title: pl.name, detail: result.error });
+      }
+      return;
+    }
+    await reloadPlaylistsAfterCoverChange();
+    showToast({ type: 'success', icon: 'playlist', eyebrow: 'Cover updated', title: pl.name, thumbnail: result.playlist.cover });
+  }
+
+  async function setPlaylistCoverSong(pl, songId) {
+    await window.api.updatePlaylist(pl.id, { coverSongId: songId });
+    await reloadPlaylistsAfterCoverChange();
+    const updated = state.playlists.find(p => p.id === pl.id);
+    showToast({
+      type: 'success',
+      icon: 'playlist',
+      eyebrow: songId ? 'Cover updated' : 'Cover reset',
+      title: pl.name,
+      detail: songId ? undefined : 'Using the first song’s cover',
+      thumbnail: (updated && getPlaylistCover(updated)) || undefined
+    });
+  }
+
+  // ── Render: Home ────────────────────────────────────────────────
+  const MUSIC_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+  const LIBRARY_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+
+  function getGreeting() {
+    const h = new Date().getHours();
+    if (h < 5) return 'Good night';
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  function renderHome() {
+    const plCount = state.playlists.length;
+    const songCount = state.songs.length;
+    dom.homeTitle.textContent = getGreeting();
+    dom.homeSubtitle.textContent =
+      `${plCount} playlist${plCount !== 1 ? 's' : ''} · ${songCount} song${songCount !== 1 ? 's' : ''} in your library`;
+
+    const q = state.searchQuery.toLowerCase();
+    const matches = (name) => !q || name.toLowerCase().includes(q);
+
+    dom.homeGrid.innerHTML = '';
+    if (matches('All Downloads')) {
+      dom.homeGrid.appendChild(createHomeCard({
+        viewId: 'all',
+        name: 'All Downloads',
+        meta: `Library · ${songCount} song${songCount !== 1 ? 's' : ''}`,
+        cover: state.songs.find(s => s.thumbnail)?.thumbnail || null,
+        fallbackIcon: LIBRARY_ICON
+      }));
+    }
+
+    state.playlists.filter(pl => matches(pl.name)).forEach(pl => {
+      const count = getPlaylistSongs(pl).length;
+      dom.homeGrid.appendChild(createHomeCard({
+        viewId: pl.id,
+        playlist: pl,
+        name: pl.name,
+        meta: `Playlist · ${count} song${count !== 1 ? 's' : ''}`,
+        cover: getPlaylistCover(pl),
+        fallbackIcon: MUSIC_ICON
+      }));
+    });
+
+    if (!q) {
+      const add = document.createElement('button');
+      add.className = 'home-card home-card-new';
+      add.innerHTML = `
+        <div class="home-card-cover">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="36" height="36">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </div>
+        <div class="home-card-name">New playlist</div>
+        <div class="home-card-meta">Create a collection</div>
+      `;
+      add.addEventListener('click', createPlaylist);
+      dom.homeGrid.appendChild(add);
+    } else if (!dom.homeGrid.children.length) {
+      dom.homeGrid.innerHTML = `<p class="home-no-results">No playlists match “${escapeHtml(state.searchQuery)}”.</p>`;
+    }
+  }
+
+  function createHomeCard({ viewId, playlist, name, meta, cover, fallbackIcon }) {
+    const card = document.createElement('div');
+    const isActive = state.playingFromView === viewId && Boolean(state.currentSong);
+    card.className = `home-card${isActive && state.isPlaying ? ' playing' : ''}`;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', `Open ${name}`);
+
+    card.innerHTML = `
+      <div class="home-card-cover">
+        ${cover ? `<img src="${escapeHtml(cover)}" alt="" draggable="false">` : `<div class="home-card-placeholder">${fallbackIcon}</div>`}
+        ${playlist ? `
+          <button class="home-card-edit" title="Change cover" aria-label="Change cover for ${escapeHtml(name)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+            </svg>
+          </button>` : ''}
+        <button class="home-card-play" title="${isActive && state.isPlaying ? 'Pause' : 'Play'}" aria-label="Play ${escapeHtml(name)}">
+          ${isActive && state.isPlaying
+            ? '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="7,4 20,12 7,20"/></svg>'}
+        </button>
+      </div>
+      <div class="home-card-name">${escapeHtml(name)}</div>
+      <div class="home-card-meta">${escapeHtml(meta)}</div>
+    `;
+
+    card.addEventListener('click', () => switchView(viewId));
+    card.addEventListener('keydown', (e) => {
+      if (e.target === card && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        switchView(viewId);
+      }
+    });
+
+    card.querySelector('.home-card-play').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isActive) { togglePlay(); return; }
+      if (viewId === 'all') playAllSongs({ navigate: false });
+      else playPlaylist(viewId, { navigate: false });
+    });
+
+    if (playlist) {
+      card.querySelector('.home-card-edit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        showCoverMenu(rect.left, rect.bottom + 6, playlist);
+      });
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showPlaylistContextMenu(e.clientX, e.clientY, playlist);
+      });
+    }
+
+    return card;
+  }
+
   // ── Render: Song List ───────────────────────────────────────────
   function renderSongList() {
+    const isHome = state.currentView === 'home';
+    const colHeaderEl = document.getElementById('song-list-header');
+    dom.homeView.hidden = !isHome;
+    dom.viewHero.style.display = isHome ? 'none' : '';
+    if (isHome) {
+      dom.songList.style.display = 'none';
+      dom.emptyState.classList.remove('visible');
+      if (colHeaderEl) colHeaderEl.style.display = 'none';
+      renderHome();
+      return;
+    }
+
     let songs = [];
     let viewTitle = 'All Downloads';
     let isPlaylistView = false;
@@ -903,19 +1123,22 @@
       heroLabel.textContent = isPlaylistView ? 'PLAYLIST' : 'LIBRARY';
     }
 
-    // Use currently playing song if it's in this view, otherwise first song
+    // A cover the user picked for the playlist wins; otherwise use the
+    // currently playing song if it's in this view, otherwise the first song.
+    const chosenCover = currentPlaylist ? getChosenPlaylistCover(currentPlaylist) : null;
     const playingSongInView = state.currentSong && songs.find(s => s.id === state.currentSong.id);
     const heroSong = playingSongInView || (songs.length > 0 ? songs[0] : null);
+    const heroCover = chosenCover || heroSong?.thumbnail || null;
     if (heroBg) {
-      heroBg.style.backgroundImage = heroSong && heroSong.thumbnail ? `url("${heroSong.thumbnail}")` : '';
+      heroBg.style.backgroundImage = heroCover ? `url("${cssUrl(heroCover)}")` : '';
     }
-    applyHeroColor(heroSong && heroSong.thumbnail ? heroSong.thumbnail : null);
+    applyHeroColor(heroCover);
     if (heroThumb) {
-      if (heroSong && heroSong.thumbnail) {
-        heroThumb.innerHTML = `<img src="${escapeHtml(heroSong.thumbnail)}" alt="">`;
-      } else {
-        heroThumb.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
-      }
+      heroThumb.innerHTML = heroCover
+        ? `<img src="${escapeHtml(heroCover)}" alt="">`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+      heroThumb.classList.toggle('editable', isPlaylistView);
+      heroThumb.title = isPlaylistView ? 'Change cover' : '';
     }
 
     // Header actions
@@ -1787,7 +2010,7 @@
     await window.api.deletePlaylist(pl.id);
     state.playlists = await window.api.getPlaylists();
     if (state.currentView === pl.id) {
-      state.currentView = 'all';
+      state.currentView = 'home';
     }
     renderSidebar();
     highlightActiveNav();
@@ -1969,8 +2192,11 @@
     renderSongList();
   }
 
-  function playSong(song) {
+  // fromView is the view whose songs form the queue — the one on screen when
+  // the user picks a song, or the original source when advancing next/prev.
+  function playSong(song, fromView = state.currentView) {
     clearNextSongTimer();
+    if (fromView === 'home') fromView = 'all';
 
     const playId = ++_playId;
     _currentPlayId = playId;  // Event handlers will check this
@@ -1982,10 +2208,10 @@
     // Update state immediately — fully synchronous, no async gaps
     state.currentSong = song;
     state.isPlaying = true;
-    state.playingFromView = state.currentView;  // Track which view started playback
+    state.playingFromView = fromView;  // Track which view started playback
 
-    // Build queue from current view
-    buildQueue();
+    // Build queue from the source view
+    buildQueue(fromView);
 
     // Find index in queue
     state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === song.id);
@@ -2040,11 +2266,11 @@
     saveSession();
   }
 
-  function buildQueue() {
-    if (state.currentView === 'all') {
+  function buildQueue(viewId = state.currentView) {
+    if (viewId === 'all' || viewId === 'home') {
       state.currentQueue = [...state.songs];
     } else {
-      const pl = state.playlists.find(p => p.id === state.currentView);
+      const pl = state.playlists.find(p => p.id === viewId);
       if (pl) {
         state.currentQueue = pl.songs.map(id => state.songs.find(s => s.id === id)).filter(Boolean);
       } else {
@@ -2075,15 +2301,17 @@
     return shuffled;
   }
 
-  function playAllSongs() {
+  function playAllSongs({ navigate = true } = {}) {
     if (state.songs.length === 0) return;
-    state.currentView = 'all';
-    highlightActiveNav();
-    renderSongList();
-    playSong(state.songs[0]);
+    if (navigate) {
+      state.currentView = 'all';
+      highlightActiveNav();
+      renderSongList();
+    }
+    playSong(state.songs[0], 'all');
   }
 
-  function playPlaylist(playlistId) {
+  function playPlaylist(playlistId, { navigate = true } = {}) {
     const pl = state.playlists.find(p => p.id === playlistId);
     if (!pl || pl.songs.length === 0) {
       showToast({
@@ -2095,11 +2323,13 @@
       });
       return;
     }
-    state.currentView = playlistId;
-    highlightActiveNav();
-    renderSongList();
+    if (navigate) {
+      state.currentView = playlistId;
+      highlightActiveNav();
+      renderSongList();
+    }
     const firstSong = state.songs.find(s => s.id === pl.songs[0]);
-    if (firstSong) playSong(firstSong);
+    if (firstSong) playSong(firstSong, playlistId);
   }
 
   function currentViewHasSong(song) {
@@ -2161,7 +2391,9 @@
 
     // If no song loaded, start playing from the current view
     if (!state.currentSong) {
-      if (state.currentView === 'all') {
+      if (state.currentView === 'home') {
+        playAllSongs({ navigate: false });
+      } else if (state.currentView === 'all') {
         if (state.songs.length > 0) playAllSongs();
       } else {
         playPlaylist(state.currentView);
@@ -2205,7 +2437,7 @@
     }
 
     const nextSong = state.currentQueue[nextIndex];
-    if (nextSong) playSong(nextSong);
+    if (nextSong) playSong(nextSong, state.playingFromView || state.currentView);
   }
 
   function playPrev() {
@@ -2229,14 +2461,14 @@
     }
 
     const prevSong = state.currentQueue[prevIndex];
-    if (prevSong) playSong(prevSong);
+    if (prevSong) playSong(prevSong, state.playingFromView || state.currentView);
   }
 
   function toggleShuffle() {
     state.shuffle = !state.shuffle;
     updateShuffleUI();
     if (state.currentQueue.length > 0) {
-      buildQueue();
+      buildQueue(state.playingFromView || state.currentView);
       if (state.currentSong) {
         state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === state.currentSong.id);
       }
@@ -2574,7 +2806,7 @@
   function saveSession() {
     window.api.saveSession({
       lastSongId: state.currentSong?.id || null,
-      lastPlaylistId: state.currentView !== 'all' ? state.currentView : null,
+      lastPlaylistId: state.playlists.some(p => p.id === state.playingFromView) ? state.playingFromView : null,
       volume: state.volume,
       shuffle: state.shuffle,
       repeat: state.repeat
@@ -2608,7 +2840,15 @@
     dom.searchInput.addEventListener('input', onSearchInput);
 
     // Navigation
+    dom.navHome.addEventListener('click', () => switchView('home'));
     dom.navAll.addEventListener('click', () => switchView('all'));
+    document.getElementById('view-hero-thumb').addEventListener('click', (e) => {
+      const pl = state.playlists.find(p => p.id === state.currentView);
+      if (!pl) return;
+      // Keep the document-level click handler from closing the menu right away.
+      e.stopPropagation();
+      showCoverMenu(e.clientX, e.clientY, pl);
+    });
 
     // New playlist
     dom.btnNewPlaylist.addEventListener('click', createPlaylist);

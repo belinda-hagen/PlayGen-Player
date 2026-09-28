@@ -26,9 +26,15 @@
       <span class="logo-text">Play<span class="logo-accent">Gen</span></span>
     </div>
     <div class="titlebar-controls">
-      <button class="titlebar-btn" id="btn-minimize" title="Minimize">-</button>
-      <button class="titlebar-btn" id="btn-maximize" title="Maximize">&#9633;</button>
-      <button class="titlebar-btn btn-close" id="btn-close" title="Close">x</button>
+      <button class="titlebar-btn" id="btn-minimize" title="Minimize" aria-label="Minimize">
+        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"><line x1="0" y1="5.5" x2="10" y2="5.5"/></svg>
+      </button>
+      <button class="titlebar-btn" id="btn-maximize" title="Maximize" aria-label="Maximize">
+        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="9" height="9" rx="1"/></svg>
+      </button>
+      <button class="titlebar-btn btn-close" id="btn-close" title="Close" aria-label="Close">
+        <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><line x1="0.5" y1="0.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="0.5" x2="0.5" y2="9.5"/></svg>
+      </button>
     </div>
   </header>
 
@@ -76,7 +82,13 @@
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-section">
           <h3 class="sidebar-heading">Library</h3>
-          <div class="nav-item active" data-view="all" id="nav-all">
+          <div class="nav-item active" data-view="home" id="nav-home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" width="16" height="16">
+              <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>
+            </svg>
+            <span>Home</span>
+          </div>
+          <div class="nav-item" data-view="all" id="nav-all">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
@@ -123,6 +135,14 @@
       </aside>
 
       <main class="main-area" id="main-area">
+        <section class="home-view" id="home-view" hidden>
+          <header class="home-header">
+            <h2 class="home-title" id="home-title">Welcome back</h2>
+            <p class="home-subtitle" id="home-subtitle"></p>
+          </header>
+          <div class="home-grid" id="home-grid"></div>
+        </section>
+
         <div class="view-hero" id="view-hero">
           <div class="view-hero-bg" id="view-hero-bg"></div>
           <div class="view-hero-overlay"></div>
@@ -313,7 +333,9 @@
     <div class="settings-panel">
       <div class="settings-header">
         <h3>Settings</h3>
-        <button class="settings-close" id="settings-close">x</button>
+        <button class="settings-close" id="settings-close" title="Close" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div class="settings-body">
         <div class="settings-group">

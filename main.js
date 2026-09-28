@@ -1,15 +1,19 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { spawn, spawnSync } = require('child_process');
 
 // ── Paths ──────────────────────────────────────────────────────────
 const userDataPath = app.getPath('userData');
 const downloadsPath = path.join(userDataPath, 'downloads');
 const dbPath = path.join(userDataPath, 'playgen-db.json');
+// Custom playlist covers live outside the watched downloads folder.
+const coversPath = path.join(userDataPath, 'covers');
 
 // Ensure directories exist
 if (!fs.existsSync(downloadsPath)) fs.mkdirSync(downloadsPath, { recursive: true });
+if (!fs.existsSync(coversPath)) fs.mkdirSync(coversPath, { recursive: true });
 
 // ── Database ───────────────────────────────────────────────────────
 function loadDB() {
@@ -783,12 +787,59 @@ ipcMain.handle('update-playlist', (event, payload = {}) => {
       pl.nextSongDelaySeconds = Math.max(0, Number(updates.nextSongDelaySeconds) || 0);
     }
 
+    // Pin a song's artwork as the cover (replaces any uploaded image), or
+    // pass null to go back to the automatic first-song cover.
+    if (Object.prototype.hasOwnProperty.call(updates, 'coverSongId')) {
+      removePlaylistCoverFile(pl);
+      if (updates.coverSongId) pl.coverSongId = String(updates.coverSongId);
+      else delete pl.coverSongId;
+    }
+
     saveDB(db);
   }
   return { success: true };
 });
 
+function removePlaylistCoverFile(pl) {
+  if (pl.coverPath) { try { fs.unlinkSync(pl.coverPath); } catch { /* ignore */ } }
+  delete pl.coverPath;
+  delete pl.cover;
+}
+
+// Let the user pick an image file as a playlist cover. The file is copied into
+// the app's covers folder so the cover survives the original being moved.
+ipcMain.handle('choose-playlist-cover', async (event, { playlistId } = {}) => {
+  const pl = db.playlists.find(p => p.id === playlistId);
+  if (!pl) return { success: false, error: 'Playlist not found' };
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: `Cover for "${pl.name}"`,
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }]
+  });
+  if (result.canceled || !result.filePaths[0]) return { success: false, error: 'Cancelled' };
+
+  try {
+    const src = result.filePaths[0];
+    const ext = path.extname(src).toLowerCase() || '.jpg';
+    // Fresh filename each time so the renderer's image URL changes and reloads.
+    const dest = path.join(coversPath, `${pl.id}-${Date.now().toString(36)}${ext}`);
+    fs.copyFileSync(src, dest);
+    removePlaylistCoverFile(pl);
+    delete pl.coverSongId;
+    pl.coverPath = dest;
+    pl.cover = pathToFileURL(dest).href;
+    saveDB(db);
+    return { success: true, playlist: pl };
+  } catch (err) {
+    console.error('[PlayGen] Failed to set playlist cover:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('delete-playlist', (event, playlistId) => {
+  const pl = db.playlists.find(p => p.id === playlistId);
+  if (pl) removePlaylistCoverFile(pl);
   db.playlists = db.playlists.filter(p => p.id !== playlistId);
   saveDB(db);
   return { success: true };

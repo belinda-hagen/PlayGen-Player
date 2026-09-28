@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
   createPlaylist: (name) => ipcRenderer.invoke('create-playlist', name),
   renamePlaylist: (playlistId, name) => ipcRenderer.invoke('rename-playlist', { playlistId, name }),
   updatePlaylist: (playlistId, updates) => ipcRenderer.invoke('update-playlist', { playlistId, updates }),
+  choosePlaylistCover: (playlistId) => ipcRenderer.invoke('choose-playlist-cover', { playlistId }),
   deletePlaylist: (playlistId) => ipcRenderer.invoke('delete-playlist', playlistId),
   addToPlaylist: (playlistId, songId) => ipcRenderer.invoke('add-to-playlist', { playlistId, songId }),
   removeFromPlaylist: (playlistId, songId) => ipcRenderer.invoke('remove-from-playlist', { playlistId, songId }),
