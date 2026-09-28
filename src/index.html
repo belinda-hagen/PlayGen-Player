@@ -6,17 +6,31 @@
   <title>PlayGen</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="loading-screen" id="loading-screen">
     <div class="loading-logo">
       <img src="../assets/playgen-icon.png" alt="PlayGen" class="loading-logo-img">
+      <span class="intro-wordmark">PlayGen</span>
+    </div>
+    <div class="intro-bars" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
     </div>
     <div class="loading-spinner"></div>
-    <div class="loading-text">Loading...</div>
   </div>
+  <script>
+    // Decide synchronously (before first paint) whether to play the intro.
+    // The flag mirrors the "startupAnimation" setting saved in the app DB.
+    try {
+      const theme = localStorage.getItem('theme');
+      if (theme) document.documentElement.dataset.theme = theme;
+      if (localStorage.getItem('startupAnimation') !== 'false') {
+        document.getElementById('loading-screen').classList.add('intro');
+      }
+    } catch { /* storage unavailable: fall back to the plain spinner */ }
+  </script>
 
   <div class="scanlines"></div>
 
@@ -137,7 +151,7 @@
       <main class="main-area" id="main-area">
         <section class="home-view" id="home-view" hidden>
           <header class="home-header">
-            <h2 class="home-title" id="home-title">Welcome back</h2>
+            <h2 class="home-title" id="home-title">Your library</h2>
             <p class="home-subtitle" id="home-subtitle"></p>
           </header>
           <div class="home-grid" id="home-grid"></div>
@@ -348,6 +362,17 @@
             </div>
           </label>
           <p class="settings-hint">When enabled, a small floating player appears when you minimize the main window.</p>
+        </div>
+        <div class="settings-group">
+          <h4 class="settings-group-title">Startup</h4>
+          <label class="settings-toggle">
+            <span class="settings-label">Play intro animation on launch</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="setting-startup-animation" checked>
+              <span class="toggle-slider"></span>
+            </div>
+          </label>
+          <p class="settings-hint">Shows a short logo animation when PlayGen starts.</p>
         </div>
         <div class="settings-group">
           <h4 class="settings-group-title">Color Theme</h4>

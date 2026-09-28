@@ -149,6 +149,7 @@
     settingsOverlay: $('#settings-overlay'),
     settingsClose: $('#settings-close'),
     settingMiniPlayer: $('#setting-mini-player'),
+    settingStartupAnimation: $('#setting-startup-animation'),
     settingThemeInputs: $$('input[name="setting-theme"]'),
 
     // Sidebar
@@ -187,6 +188,8 @@
   function applyTheme(theme) {
     state.theme = normalizeTheme(theme);
     document.documentElement.dataset.theme = state.theme;
+    // Mirrored so the startup intro can use the theme before settings load.
+    try { localStorage.setItem('theme', state.theme); } catch { /* ignore */ }
   }
 
   function getThemeValue(name, fallback) {
@@ -658,8 +661,34 @@
 
     setupEventListeners();
 
-    // Hide loading screen
-    dom.loadingScreen.classList.add('hidden');
+    // Keep the local mirror (read before first paint) in sync with the DB.
+    setStartupAnimationFlag(settings.startupAnimation !== false);
+
+    hideLoadingScreen();
+  }
+
+  // ── Startup intro ───────────────────────────────────────────────
+  // The logo reveal plays for at least INTRO_MIN_MS even when the library
+  // loads faster, so it never cuts off mid-animation.
+  const INTRO_MIN_MS = 1500;
+  const introStartedAt = performance.now();
+
+  function setStartupAnimationFlag(enabled) {
+    try { localStorage.setItem('startupAnimation', String(enabled)); } catch { /* ignore */ }
+  }
+
+  function hideLoadingScreen() {
+    const screen = dom.loadingScreen;
+    const reveal = () => {
+      screen.classList.add('hidden');
+      if (screen.classList.contains('intro')) {
+        document.body.classList.add('app-entering');
+        setTimeout(() => document.body.classList.remove('app-entering'), 700);
+      }
+    };
+    if (!screen.classList.contains('intro')) { reveal(); return; }
+    const wait = Math.max(0, INTRO_MIN_MS - (performance.now() - introStartedAt));
+    setTimeout(reveal, wait);
   }
 
   // ── Render: Sidebar ─────────────────────────────────────────────
@@ -954,20 +983,11 @@
   const MUSIC_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
   const LIBRARY_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
 
-  function getGreeting() {
-    const h = new Date().getHours();
-    if (h < 5) return 'Good night';
-    if (h < 12) return 'Good morning';
-    if (h < 18) return 'Good afternoon';
-    return 'Good evening';
-  }
-
   function renderHome() {
     const plCount = state.playlists.length;
     const songCount = state.songs.length;
-    dom.homeTitle.textContent = getGreeting();
     dom.homeSubtitle.textContent =
-      `${plCount} playlist${plCount !== 1 ? 's' : ''} · ${songCount} song${songCount !== 1 ? 's' : ''} in your library`;
+      `${plCount} playlist${plCount !== 1 ? 's' : ''}, ${songCount} song${songCount !== 1 ? 's' : ''}`;
 
     const q = state.searchQuery.toLowerCase();
     const matches = (name) => !q || name.toLowerCase().includes(q);
@@ -1120,7 +1140,7 @@
     const heroLabel = document.getElementById('view-hero-label');
 
     if (heroLabel) {
-      heroLabel.textContent = isPlaylistView ? 'PLAYLIST' : 'LIBRARY';
+      heroLabel.textContent = isPlaylistView ? 'Playlist' : 'Library';
     }
 
     // A cover the user picked for the playlist wins; otherwise use the
@@ -2407,8 +2427,12 @@
       dom.btnPlay.classList.remove('is-playing');
       document.body.classList.remove('audio-playing');
     } else {
-      if (currentViewHasSong(state.currentSong)) {
+      // Resuming inside a different view that contains this song adopts
+      // that view as the source — rebuild the queue so next/prev follow it.
+      if (currentViewHasSong(state.currentSong) && state.playingFromView !== state.currentView) {
         state.playingFromView = state.currentView;
+        buildQueue(state.currentView);
+        state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === state.currentSong.id);
       }
       audio.play();
       state.isPlaying = true;
@@ -2779,6 +2803,7 @@
     const settings = await window.api.getSettings();
     applyTheme(settings.theme);
     dom.settingMiniPlayer.checked = settings.miniPlayerOnMinimize ?? true;
+    dom.settingStartupAnimation.checked = settings.startupAnimation !== false;
     dom.settingThemeInputs.forEach(input => {
       input.checked = input.value === state.theme;
     });
@@ -2864,6 +2889,11 @@
     });
     dom.settingMiniPlayer.addEventListener('change', () => {
       window.api.saveSettings({ miniPlayerOnMinimize: dom.settingMiniPlayer.checked });
+    });
+    dom.settingStartupAnimation.addEventListener('change', () => {
+      const enabled = dom.settingStartupAnimation.checked;
+      window.api.saveSettings({ startupAnimation: enabled });
+      setStartupAnimationFlag(enabled);
     });
     dom.settingThemeInputs.forEach(input => {
       input.addEventListener('change', () => {

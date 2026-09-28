@@ -931,7 +931,7 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
 
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
-  return { miniPlayerOnMinimize: true, theme: 'rose', ...(db.settings || {}) };
+  return { miniPlayerOnMinimize: true, theme: 'rose', startupAnimation: true, ...(db.settings || {}) };
 });
 
 ipcMain.handle('save-settings', (event, settings) => {

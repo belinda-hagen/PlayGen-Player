@@ -5,7 +5,7 @@
   <title>PlayGen Mini</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * {
       box-sizing: border-box;
@@ -16,10 +16,6 @@
     body {
       --button-accent: #e83f79;
       --button-accent-hover: #f2558a;
-      --button-accent-shadow: rgba(232, 63, 121, 0.28);
-      --accent-gradient: linear-gradient(135deg, #ff2d78 0%, #a855f7 52%, #ff8a2a 100%);
-      --accent-gradient-soft: linear-gradient(145deg, rgba(232, 63, 121, 0.14), rgba(242, 85, 138, 0.08));
-      --soundbar-gradient: linear-gradient(90deg, #ff9bbc 0%, #e83f79 100%);
       width: 320px;
       height: 80px;
       overflow: hidden;
@@ -33,28 +29,16 @@
     body[data-theme="ocean"] {
       --button-accent: #21b6a8;
       --button-accent-hover: #30d1c2;
-      --button-accent-shadow: rgba(33, 182, 168, 0.26);
-      --accent-gradient: linear-gradient(135deg, #21c7b7 0%, #38bdf8 58%, #7dd3fc 100%);
-      --accent-gradient-soft: linear-gradient(145deg, rgba(33, 199, 183, 0.14), rgba(56, 189, 248, 0.08));
-      --soundbar-gradient: linear-gradient(90deg, #7dd3fc 0%, #21b6a8 100%);
     }
 
     body[data-theme="ember"] {
       --button-accent: #e86f22;
       --button-accent-hover: #f4863e;
-      --button-accent-shadow: rgba(232, 111, 34, 0.26);
-      --accent-gradient: linear-gradient(135deg, #f97316 0%, #f59e0b 58%, #facc15 100%);
-      --accent-gradient-soft: linear-gradient(145deg, rgba(249, 115, 22, 0.13), rgba(245, 158, 11, 0.08));
-      --soundbar-gradient: linear-gradient(90deg, #facc15 0%, #e86f22 100%);
     }
 
     body[data-theme="violet"] {
       --button-accent: #8b5cf6;
       --button-accent-hover: #a178f8;
-      --button-accent-shadow: rgba(139, 92, 246, 0.27);
-      --accent-gradient: linear-gradient(135deg, #9b5cf6 0%, #c084fc 56%, #f0abfc 100%);
-      --accent-gradient-soft: linear-gradient(145deg, rgba(155, 92, 246, 0.14), rgba(192, 132, 252, 0.08));
-      --soundbar-gradient: linear-gradient(90deg, #f0abfc 0%, #8b5cf6 100%);
     }
 
     .mini-player {
@@ -64,9 +48,7 @@
       align-items: center;
       gap: 12px;
       padding: 10px 12px;
-      background:
-        var(--accent-gradient-soft),
-        #0b0b0b;
+      background: #121212;
     }
 
     .mini-thumb {
@@ -80,7 +62,6 @@
       background: #242424;
       color: #727272;
       flex-shrink: 0;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
     }
 
     .mini-thumb img {
@@ -114,14 +95,13 @@
 
     .mini-title {
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 500;
       color: #fff;
     }
 
     .mini-channel {
       font-size: 11px;
-      color: #b3b3b3;
-      font-weight: 600;
+      color: #a7a7a7;
     }
 
     .mini-controls {
@@ -154,14 +134,14 @@
     .mini-btn.play-btn {
       width: 36px;
       height: 36px;
-      background: var(--button-accent);
-      color: #fff;
-      box-shadow: 0 8px 18px var(--button-accent-shadow);
+      background: #fff;
+      color: #000;
     }
 
     .mini-btn.play-btn:hover {
-      transform: scale(1.06);
-      background: var(--button-accent-hover);
+      transform: scale(1.05);
+      background: #fff;
+      color: #000;
     }
 
     .mini-btn.close-btn {
@@ -192,7 +172,7 @@
     .mini-progress-fill {
       height: 100%;
       width: 0%;
-      background: var(--soundbar-gradient);
+      background: var(--button-accent);
       transition: width 0.5s linear;
     }
   </style>
@@ -228,7 +208,7 @@
         </svg>
       </button>
     </div>
-    <button class="mini-btn close-btn" id="btn-close" title="Close mini player">x</button>
+    <button class="mini-btn close-btn" id="btn-close" title="Close mini player" aria-label="Close mini player"><svg viewBox="0 0 10 10" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button>
   </div>
   <div class="mini-progress">
     <div class="mini-progress-fill" id="mini-progress-fill"></div>
