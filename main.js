@@ -156,6 +156,138 @@ function resolveDependencies() {
 // Resolve on startup
 const depsStatus = resolveDependencies();
 
+// ── yt-dlp Auto-Update ────────────────────────────────────────────
+// YouTube changes often break downloads, and yt-dlp ships fixes faster than
+// app releases. So the bundled yt-dlp is copied into userData (always
+// writable, unlike the install folder) and kept current with its built-in
+// updater. The bundled copy stays as the fallback.
+const YTDLP_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
+const ytdlpExeName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+const bundledYtdlpPath = getBundledBinPath(ytdlpExeName);
+const managedYtdlpPath = path.join(userDataPath, 'bin', ytdlpExeName);
+const canManageYtdlp = fs.existsSync(bundledYtdlpPath);
+if (canManageYtdlp && fs.existsSync(managedYtdlpPath)) ytdlpPath = managedYtdlpPath;
+
+// Downloads wait for an in-flight update so they never spawn a half-swapped exe.
+let ytdlpUpdate = null;
+let ytdlpChecking = false;
+let ytdlpError = null;
+
+function runYtdlp(exe, args, timeoutMs) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let proc;
+    try {
+      proc = spawn(exe, args, { windowsHide: true });
+    } catch (err) {
+      return resolve({ code: -1, stdout, stderr: err.message });
+    }
+    const timer = setTimeout(() => proc.kill(), timeoutMs);
+    proc.stdout.on('data', d => { stdout += d; });
+    proc.stderr.on('data', d => { stderr += d; });
+    proc.on('error', err => { clearTimeout(timer); resolve({ code: -1, stdout, stderr: err.message }); });
+    proc.on('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+  });
+}
+
+async function getYtdlpVersion(exe) {
+  const { code, stdout } = await runYtdlp(exe, ['--version'], 30000);
+  return code === 0 && stdout.trim() ? stdout.trim() : null;
+}
+
+function getYtdlpStatus() {
+  const info = db.ytdlp || {};
+  return {
+    managed: canManageYtdlp,
+    version: info.version || null,
+    lastCheck: info.lastCheck || null,
+    checking: ytdlpChecking,
+    error: ytdlpError
+  };
+}
+
+function sendYtdlpStatus() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('ytdlp-status', getYtdlpStatus());
+  }
+}
+
+function saveYtdlpInfo(updates) {
+  db.ytdlp = { ...(db.ytdlp || {}), ...updates };
+  saveDB(db);
+}
+
+// Make sure the userData copy exists and works. Replaces it with the bundled
+// one on first run, when it is broken, or when an app update shipped a newer
+// bundled yt-dlp than the copy has. Returns the working copy's version.
+async function prepareManagedYtdlp() {
+  const stat = fs.statSync(bundledYtdlpPath);
+  const stamp = `${stat.size}-${stat.mtimeMs}`;
+  let version = fs.existsSync(managedYtdlpPath) ? await getYtdlpVersion(managedYtdlpPath) : null;
+  if (!version || db.ytdlp?.bundledStamp !== stamp) {
+    const bundledVersion = await getYtdlpVersion(bundledYtdlpPath);
+    // Versions are dates (2026.08.19[.N]), so string order is release order.
+    if (!version || (bundledVersion && bundledVersion > version)) {
+      fs.mkdirSync(path.dirname(managedYtdlpPath), { recursive: true });
+      fs.copyFileSync(bundledYtdlpPath, managedYtdlpPath);
+      version = await getYtdlpVersion(managedYtdlpPath);
+    }
+  }
+  saveYtdlpInfo({ bundledStamp: stamp, version });
+  return version;
+}
+
+// Runs at startup (at most once a day) and from Settings (force).
+function updateYtdlp({ force = false } = {}) {
+  if (!canManageYtdlp) return Promise.resolve(getYtdlpStatus());
+  if (ytdlpUpdate) return ytdlpUpdate;
+
+  ytdlpChecking = true;
+  ytdlpError = null;
+  sendYtdlpStatus();
+
+  ytdlpUpdate = (async () => {
+    try {
+      if (!await prepareManagedYtdlp()) throw new Error('Could not set up yt-dlp');
+      ytdlpPath = managedYtdlpPath;
+
+      const lastCheck = db.ytdlp?.lastCheck || 0;
+      if (!force && Date.now() - lastCheck < YTDLP_CHECK_INTERVAL) return;
+
+      console.log('[PlayGen] Checking for yt-dlp updates...');
+      const result = await runYtdlp(managedYtdlpPath, ['-U'], 5 * 60 * 1000);
+      const version = await getYtdlpVersion(managedYtdlpPath);
+      if (!version) {
+        // The update left a broken exe behind; start over from the bundled copy.
+        fs.copyFileSync(bundledYtdlpPath, managedYtdlpPath);
+        saveYtdlpInfo({ version: await getYtdlpVersion(managedYtdlpPath) });
+        throw new Error('Update failed, restored the bundled version');
+      }
+      saveYtdlpInfo({ version, ...(result.code === 0 ? { lastCheck: Date.now() } : {}) });
+      console.log('[PlayGen] yt-dlp version:', version);
+      if (result.code !== 0) {
+        const line = (result.stderr || result.stdout).split(/\r?\n/).find(l => l.includes('ERROR'));
+        throw new Error(line ? line.replace(/^ERROR:\s*/, '') : 'Could not check for updates');
+      }
+    } catch (err) {
+      console.error('[PlayGen] yt-dlp update:', err.message);
+      ytdlpError = err.message;
+      if (!fs.existsSync(managedYtdlpPath)) ytdlpPath = bundledYtdlpPath;
+    }
+  })().finally(() => {
+    ytdlpUpdate = null;
+    ytdlpChecking = false;
+    sendYtdlpStatus();
+  }).then(getYtdlpStatus);
+
+  return ytdlpUpdate;
+}
+
+async function waitForYtdlpUpdate() {
+  if (ytdlpUpdate) await ytdlpUpdate;
+}
+
 // ── Window ─────────────────────────────────────────────────────────
 let mainWindow;
 let miniPlayerWindow = null;
@@ -213,26 +345,45 @@ function createWindow() {
 }
 
 // ── Mini Player ───────────────────────────────────────────────────
+// Window size for each mini player style (see src/mini-player.html).
+const MINI_PLAYER_SIZES = {
+  classic: { width: 320, height: 84 },
+  compact: { width: 260, height: 52 },
+  cover: { width: 220, height: 220 },
+  glass: { width: 380, height: 104 }
+};
+
+// Place the mini player at `origin` (or the position the user last dragged it
+// to), kept inside that display's work area. Without either, it goes in the
+// bottom-right corner of the primary display, 20px in from the edges.
+function getMiniPlayerBounds(style, origin = db.settings?.miniPlayerPosition) {
+  const { screen } = require('electron');
+  const size = MINI_PLAYER_SIZES[style] || MINI_PLAYER_SIZES.classic;
+  if (!origin) {
+    const area = screen.getPrimaryDisplay().workArea;
+    return { ...size, x: area.x + area.width - size.width - 20, y: area.y + area.height - size.height - 20 };
+  }
+  const area = screen.getDisplayMatching({ ...size, x: origin.x, y: origin.y }).workArea;
+  const x = Math.min(Math.max(origin.x, area.x), area.x + area.width - size.width);
+  const y = Math.min(Math.max(origin.y, area.y), area.y + area.height - size.height);
+  return { ...size, x: Math.round(x), y: Math.round(y) };
+}
+
 function createMiniPlayer() {
   if (miniPlayerWindow) return;
   console.log('[PlayGen] Creating mini player...');
 
-  const { screen } = require('electron');
-  const display = screen.getPrimaryDisplay();
-  const { width, height } = display.workAreaSize;
+  const style = db.settings?.miniPlayerStyle || 'classic';
 
   miniPlayerWindow = new BrowserWindow({
-    width: 320,
-    height: 80,
-    x: width - 340,
-    y: height - 100,
+    ...getMiniPlayerBounds(style),
     frame: false,
-    transparent: false,
+    transparent: true,
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
-    backgroundColor: '#000000',
-    hasShadow: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
     roundedCorners: false,
     webPreferences: {
       nodeIntegration: true,
@@ -241,7 +392,7 @@ function createMiniPlayer() {
     icon: path.join(__dirname, 'assets', 'playgen-icon.png')
   });
 
-  miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'));
+  miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'), { query: { style } });
   miniPlayerWindow.setMenuBarVisibility(false);
 
   miniPlayerWindow.on('closed', () => {
@@ -293,6 +444,7 @@ function stopDownloadsWatcher() {
 app.whenReady().then(() => {
   createWindow();
   startDownloadsWatcher();
+  updateYtdlp();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -314,6 +466,10 @@ ipcMain.on('window-close', () => mainWindow?.close());
 // ── IPC: Check Dependencies ──────────────────────────────────────
 ipcMain.handle('check-dependencies', async () => depsStatus);
 
+// ── IPC: yt-dlp Updates ──────────────────────────────────────────
+ipcMain.handle('get-ytdlp-status', () => getYtdlpStatus());
+ipcMain.handle('update-ytdlp', () => updateYtdlp({ force: true }));
+
 // ── IPC: Get Paths ────────────────────────────────────────────────
 ipcMain.handle('get-downloads-path', () => downloadsPath);
 
@@ -333,6 +489,7 @@ ipcMain.handle('download-video', async (event, url) => {
     }
   } catch { /* keep original */ }
 
+  await waitForYtdlpUpdate();
   console.log('[PlayGen] Download requested:', url);
   console.log('[PlayGen] yt-dlp path:', ytdlpPath);
   console.log('[PlayGen] ffmpeg path:', ffmpegPath);
@@ -476,6 +633,7 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
     return { success: false, error: 'Invalid URL format' };
   }
 
+  await waitForYtdlpUpdate();
   console.log('[PlayGen] Playlist download requested:', url);
 
   return new Promise((resolve) => {
@@ -931,12 +1089,17 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
 
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
-  return { miniPlayerOnMinimize: true, theme: 'rose', startupAnimation: true, ...(db.settings || {}) };
+  return { miniPlayerOnMinimize: true, miniPlayerStyle: 'classic', theme: 'rose', startupAnimation: true, ...(db.settings || {}) };
 });
 
 ipcMain.handle('save-settings', (event, settings) => {
   db.settings = { ...(db.settings || {}), ...settings };
   saveDB(db);
+  // Resize an open mini player so a style change takes effect right away.
+  if (settings.miniPlayerStyle && miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+    const { x, y } = miniPlayerWindow.getBounds();
+    miniPlayerWindow.setBounds(getMiniPlayerBounds(settings.miniPlayerStyle, { x, y }));
+  }
   return { success: true };
 });
 
@@ -945,6 +1108,28 @@ ipcMain.handle('save-settings', (event, settings) => {
 ipcMain.on('mini-player-state', (event, data) => {
   if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
     miniPlayerWindow.webContents.send('mini-player-update', data);
+  }
+});
+
+// Mini player is dragged by hand (see src/mini-player.html). Offsets are
+// relative to where the drag started; the size is re-applied on every move so
+// fractional display scaling can't make the window creep larger.
+let miniDragStart = null;
+ipcMain.on('mini-player-drag', (event, phase, dx, dy) => {
+  if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return;
+  if (phase === 'start') {
+    miniDragStart = miniPlayerWindow.getBounds();
+  } else if (phase === 'move' && miniDragStart) {
+    miniPlayerWindow.setBounds({
+      ...miniDragStart,
+      x: Math.round(miniDragStart.x + dx),
+      y: Math.round(miniDragStart.y + dy)
+    });
+  } else if (phase === 'end' && miniDragStart) {
+    miniDragStart = null;
+    const { x, y } = miniPlayerWindow.getBounds();
+    db.settings = { ...(db.settings || {}), miniPlayerPosition: { x, y } };
+    saveDB(db);
   }
 });
 

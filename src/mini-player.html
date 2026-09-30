@@ -13,17 +13,27 @@
       padding: 0;
     }
 
+    /* The window is transparent; .shell draws the visible shape of each style. */
+    html,
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+    }
+
     body {
       --button-accent: #e83f79;
       --button-accent-hover: #f2558a;
-      width: 320px;
-      height: 80px;
-      overflow: hidden;
-      background: #0b0b0b;
+      --progress: 0;
       color: #fff;
       font-family: "Inter", "Segoe UI", Arial, sans-serif;
-      -webkit-app-region: drag;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      user-select: none;
+      cursor: grab;
+    }
+
+    body.dragging {
+      cursor: grabbing;
     }
 
     body[data-theme="ocean"] {
@@ -41,27 +51,51 @@
       --button-accent-hover: #a178f8;
     }
 
+    .shell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.015) 100%),
+        #111317;
+    }
+
+    .mini-bg {
+      position: absolute;
+      inset: 0;
+      display: none;
+      background-position: center;
+      background-size: cover;
+    }
+
     .mini-player {
+      position: relative;
       height: 100%;
       display: grid;
-      grid-template-columns: 56px minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      background: #121212;
+      gap: 13px;
+      padding: 10px 14px 12px 12px;
+    }
+
+    .mini-thumb-wrap {
+      flex-shrink: 0;
     }
 
     .mini-thumb {
-      width: 56px;
-      height: 56px;
+      width: 60px;
+      height: 60px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 6px;
+      border-radius: 8px;
       overflow: hidden;
-      background: #242424;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: linear-gradient(145deg, #2a2f38 0%, #171a1f 100%);
       color: #727272;
-      flex-shrink: 0;
     }
 
     .mini-thumb img {
@@ -69,6 +103,7 @@
       height: 100%;
       object-fit: cover;
       display: none;
+      pointer-events: none;
     }
 
     .mini-thumb img.visible {
@@ -95,21 +130,22 @@
 
     .mini-title {
       font-size: 13px;
-      font-weight: 500;
-      color: #fff;
+      font-weight: 600;
     }
 
     .mini-channel {
       font-size: 11px;
-      color: #a7a7a7;
+      color: #aeb4bd;
+    }
+
+    .mini-timeline {
+      display: none;
     }
 
     .mini-controls {
       display: flex;
       align-items: center;
       gap: 4px;
-      flex-shrink: 0;
-      -webkit-app-region: no-drag;
     }
 
     .mini-btn {
@@ -123,35 +159,41 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+      flex-shrink: 0;
+      transition: background 160ms ease, color 160ms ease, transform 160ms ease, opacity 160ms ease;
     }
 
     .mini-btn:hover {
       color: #fff;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.09);
     }
 
     .mini-btn.play-btn {
       width: 36px;
       height: 36px;
-      background: #fff;
-      color: #000;
+      color: #fff;
+      background: linear-gradient(135deg, var(--button-accent), var(--button-accent-hover));
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
     }
 
     .mini-btn.play-btn:hover {
-      transform: scale(1.05);
-      background: #fff;
-      color: #000;
+      transform: scale(1.06);
+      background: linear-gradient(135deg, var(--button-accent-hover), var(--button-accent));
     }
 
+    /* Close only appears while hovering the player. */
     .mini-btn.close-btn {
       position: absolute;
-      top: 4px;
-      right: 4px;
+      top: 5px;
+      right: 5px;
+      z-index: 2;
       width: 18px;
       height: 18px;
-      font-size: 10px;
-      -webkit-app-region: no-drag;
+      opacity: 0;
+    }
+
+    .shell:hover .close-btn {
+      opacity: 1;
     }
 
     .mini-btn.close-btn:hover {
@@ -169,101 +211,419 @@
       overflow: hidden;
     }
 
-    .mini-progress-fill {
+    .progress-fill {
       height: 100%;
-      width: 0%;
-      background: var(--button-accent);
+      width: calc(var(--progress) * 1%);
+      background: linear-gradient(90deg, var(--button-accent), var(--button-accent-hover));
       transition: width 0.5s linear;
+    }
+
+    /* ── Compact: a floating pill with a spinning disc ──────────── */
+    body[data-style="compact"] .shell {
+      border-radius: 999px;
+      background: #15171c;
+    }
+
+    body[data-style="compact"] .mini-player {
+      gap: 10px;
+      padding: 0 30px 0 6px;
+    }
+
+    /* The ring around the disc doubles as the progress indicator. */
+    body[data-style="compact"] .mini-thumb-wrap {
+      padding: 2px;
+      border-radius: 50%;
+      background: conic-gradient(var(--button-accent) calc(var(--progress) * 1%), rgba(255, 255, 255, 0.14) 0);
+    }
+
+    body[data-style="compact"] .mini-thumb {
+      width: 36px;
+      height: 36px;
+      border: 2px solid #15171c;
+      border-radius: 50%;
+      animation: spin 8s linear infinite;
+      animation-play-state: paused;
+    }
+
+    body[data-style="compact"].playing .mini-thumb {
+      animation-play-state: running;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    body[data-style="compact"] .mini-title {
+      font-size: 12px;
+    }
+
+    body[data-style="compact"] .mini-channel,
+    body[data-style="compact"] #btn-prev,
+    body[data-style="compact"] .mini-progress {
+      display: none;
+    }
+
+    body[data-style="compact"] .mini-controls {
+      gap: 2px;
+    }
+
+    body[data-style="compact"] .mini-btn.play-btn {
+      width: 32px;
+      height: 32px;
+      box-shadow: none;
+    }
+
+    body[data-style="compact"] .mini-btn.close-btn {
+      top: 50%;
+      right: 7px;
+      transform: translateY(-50%);
+    }
+
+    /* ── Cover: full-bleed artwork, controls on hover ───────────── */
+    body[data-style="cover"] .shell {
+      border-radius: 18px;
+      background: #16181d;
+    }
+
+    body[data-style="cover"] .mini-bg {
+      display: block;
+      background-image: linear-gradient(145deg, var(--button-accent), #16181d);
+    }
+
+    body[data-style="cover"] .mini-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.85) 100%);
+      transition: background 200ms ease;
+    }
+
+    body[data-style="cover"] .mini-player {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 14px 16px 18px;
+    }
+
+    body[data-style="cover"] .mini-thumb-wrap {
+      display: none;
+    }
+
+    body[data-style="cover"] .mini-title {
+      font-size: 14px;
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+    }
+
+    body[data-style="cover"] .mini-channel {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    body[data-style="cover"] .mini-controls {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -60%);
+      gap: 14px;
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+
+    body[data-style="cover"] .mini-btn:not(.close-btn) {
+      width: 36px;
+      height: 36px;
+      color: #fff;
+    }
+
+    body[data-style="cover"] .mini-btn.play-btn {
+      width: 54px;
+      height: 54px;
+    }
+
+    body[data-style="cover"] .play-btn svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* Controls show on hover, and whenever playback is paused. */
+    body[data-style="cover"] .shell:hover .mini-controls,
+    body[data-style="cover"]:not(.playing) .mini-controls {
+      opacity: 1;
+    }
+
+    body[data-style="cover"] .shell:hover .mini-bg::after,
+    body[data-style="cover"]:not(.playing) .mini-bg::after {
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.45) 45%, rgba(0, 0, 0, 0.88) 100%);
+    }
+
+    body[data-style="cover"] .mini-btn.close-btn {
+      top: 10px;
+      right: 10px;
+      width: 22px;
+      height: 22px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    body[data-style="cover"] .mini-progress {
+      left: 16px;
+      right: 16px;
+      bottom: 9px;
+      height: 3px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* ── Glass: frosted bar tinted by the artwork, with timeline ── */
+    body[data-style="glass"] .shell {
+      border-radius: 16px;
+      border-color: color-mix(in srgb, var(--button-accent) 45%, rgba(255, 255, 255, 0.2));
+      background: #1b1e24;
+    }
+
+    body[data-style="glass"] .mini-bg {
+      display: block;
+      inset: -40px;
+      filter: blur(26px) saturate(1.6);
+      opacity: 0.9;
+    }
+
+    body[data-style="glass"] .mini-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 12, 16, 0.45);
+    }
+
+    body[data-style="glass"] .mini-player {
+      gap: 14px;
+      padding: 12px 16px 12px 12px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+    }
+
+    body[data-style="glass"] .mini-thumb {
+      width: 78px;
+      height: 78px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    body[data-style="glass"] .mini-title {
+      font-size: 14px;
+    }
+
+    body[data-style="glass"] .mini-channel {
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    body[data-style="glass"] .mini-timeline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    body[data-style="glass"] .mini-timeline-bar {
+      flex: 1;
+      height: 4px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    body[data-style="glass"] .mini-controls {
+      display: grid;
+      grid-template-columns: auto auto;
+      grid-template-areas: "play play" "prev next";
+      justify-items: center;
+      gap: 2px;
+    }
+
+    body[data-style="glass"] #btn-play { grid-area: play; }
+    body[data-style="glass"] #btn-prev { grid-area: prev; }
+    body[data-style="glass"] #btn-next { grid-area: next; }
+
+    body[data-style="glass"] .mini-btn:not(.play-btn) {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    body[data-style="glass"] .mini-progress {
+      display: none;
+    }
+
+    /* Inside the settings preview nothing is interactive. */
+    body.preview,
+    body.preview * {
+      pointer-events: none;
+      cursor: default;
+      transition: none !important;
     }
   </style>
 </head>
 <body>
-  <div class="mini-player">
-    <div class="mini-thumb" id="mini-thumb">
-      <img id="mini-thumb-img" src="" alt="">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20">
-        <path d="M9 18V5l12-2v13"/>
-        <circle cx="6" cy="18" r="3"/>
-        <circle cx="18" cy="16" r="3"/>
-      </svg>
+  <div class="shell">
+    <div class="mini-bg" id="mini-bg"></div>
+    <div class="mini-player">
+      <div class="mini-thumb-wrap">
+        <div class="mini-thumb" id="mini-thumb">
+          <img id="mini-thumb-img" src="" alt="" draggable="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/>
+            <circle cx="18" cy="16" r="3"/>
+          </svg>
+        </div>
+      </div>
+      <div class="mini-info">
+        <div class="mini-title" id="mini-title">No song playing</div>
+        <div class="mini-channel" id="mini-channel"></div>
+        <div class="mini-timeline">
+          <span id="mini-time-current">0:00</span>
+          <div class="mini-timeline-bar"><div class="progress-fill"></div></div>
+          <span id="mini-time-duration">0:00</span>
+        </div>
+      </div>
+      <div class="mini-controls">
+        <button class="mini-btn" id="btn-prev" title="Previous">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <polygon points="19,20 9,12 19,4"/><rect x="5" y="4" width="2" height="16"/>
+          </svg>
+        </button>
+        <button class="mini-btn play-btn" id="btn-play" title="Play/Pause">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" id="play-icon">
+            <polygon points="5,3 19,12 5,21"/>
+          </svg>
+        </button>
+        <button class="mini-btn" id="btn-next" title="Next">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <polygon points="5,4 15,12 5,20"/><rect x="17" y="4" width="2" height="16"/>
+          </svg>
+        </button>
+      </div>
     </div>
-    <div class="mini-info">
-      <div class="mini-title" id="mini-title">No song playing</div>
-      <div class="mini-channel" id="mini-channel"></div>
-    </div>
-    <div class="mini-controls">
-      <button class="mini-btn" id="btn-prev" title="Previous">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-          <polygon points="19,20 9,12 19,4"/><rect x="5" y="4" width="2" height="16"/>
-        </svg>
-      </button>
-      <button class="mini-btn play-btn" id="btn-play" title="Play/Pause">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" id="play-icon">
-          <polygon points="5,3 19,12 5,21"/>
-        </svg>
-      </button>
-      <button class="mini-btn" id="btn-next" title="Next">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-          <polygon points="5,4 15,12 5,20"/><rect x="17" y="4" width="2" height="16"/>
-        </svg>
-      </button>
+    <div class="mini-progress">
+      <div class="progress-fill"></div>
     </div>
     <button class="mini-btn close-btn" id="btn-close" title="Close mini player" aria-label="Close mini player"><svg viewBox="0 0 10 10" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button>
   </div>
-  <div class="mini-progress">
-    <div class="mini-progress-fill" id="mini-progress-fill"></div>
-  </div>
 
   <script>
-    const { ipcRenderer } = require('electron');
+    // Loaded both as the floating mini player window (with node integration)
+    // and as an <iframe> preview in Settings, which gets its data via postMessage.
+    const ipcRenderer = typeof require === 'function' ? require('electron').ipcRenderer : null;
+    const params = new URLSearchParams(location.search);
+    const isPreview = params.has('preview') || !ipcRenderer;
 
     const els = {
+      bg: document.getElementById('mini-bg'),
       title: document.getElementById('mini-title'),
       channel: document.getElementById('mini-channel'),
       thumbImg: document.getElementById('mini-thumb-img'),
       playIcon: document.getElementById('play-icon'),
-      progressFill: document.getElementById('mini-progress-fill'),
+      timeCurrent: document.getElementById('mini-time-current'),
+      timeDuration: document.getElementById('mini-time-duration'),
     };
 
     const themes = new Set(['rose', 'ocean', 'ember', 'violet']);
+    const styles = new Set(['classic', 'compact', 'cover', 'glass']);
 
     function applyTheme(theme) {
       document.body.dataset.theme = themes.has(theme) ? theme : 'rose';
     }
 
-    ipcRenderer.on('mini-player-update', (event, data) => {
+    function applyStyle(style) {
+      document.body.dataset.style = styles.has(style) ? style : 'classic';
+    }
+
+    function formatTime(seconds) {
+      if (!seconds || !isFinite(seconds)) return '0:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function update(data) {
       if (data.theme !== undefined) applyTheme(data.theme);
+      if (data.style !== undefined) applyStyle(data.style);
       if (data.title) els.title.textContent = data.title;
       if (data.channel !== undefined) els.channel.textContent = data.channel;
-      if (data.thumbnail) {
-        els.thumbImg.src = data.thumbnail;
-        els.thumbImg.classList.add('visible');
+      if (data.thumbnail !== undefined) {
+        if (data.thumbnail) {
+          els.thumbImg.src = data.thumbnail;
+          els.thumbImg.classList.add('visible');
+          // Local covers are Windows paths; backslashes are escapes inside CSS url().
+          const url = data.thumbnail.replace(/\\/g, '/').replace(/"/g, '%22');
+          els.bg.style.backgroundImage = `url("${url}")`;
+        } else {
+          els.thumbImg.removeAttribute('src');
+          els.thumbImg.classList.remove('visible');
+          els.bg.style.backgroundImage = '';
+        }
       }
       if (data.isPlaying !== undefined) {
+        document.body.classList.toggle('playing', data.isPlaying);
         els.playIcon.innerHTML = data.isPlaying
           ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
           : '<polygon points="5,3 19,12 5,21"/>';
       }
       if (data.progress !== undefined) {
-        els.progressFill.style.width = data.progress + '%';
+        document.body.style.setProperty('--progress', data.progress);
       }
-    });
+      if (data.currentTime !== undefined) els.timeCurrent.textContent = formatTime(data.currentTime);
+      if (data.duration !== undefined) els.timeDuration.textContent = formatTime(data.duration);
+    }
 
-    document.getElementById('btn-play').addEventListener('click', () => {
-      ipcRenderer.send('mini-player-command', 'toggle-play');
-    });
-    document.getElementById('btn-prev').addEventListener('click', () => {
-      ipcRenderer.send('mini-player-command', 'prev');
-    });
-    document.getElementById('btn-next').addEventListener('click', () => {
-      ipcRenderer.send('mini-player-command', 'next');
-    });
-    document.getElementById('btn-close').addEventListener('click', () => {
-      ipcRenderer.send('mini-player-command', 'close');
-    });
-    document.body.addEventListener('dblclick', () => {
-      ipcRenderer.send('mini-player-command', 'restore');
-    });
+    applyStyle(params.get('style'));
+
+    if (isPreview) {
+      document.body.classList.add('preview');
+      window.addEventListener('message', (e) => {
+        if (e.data && e.data.type === 'mini-preview') update(e.data.state);
+      });
+    } else {
+      ipcRenderer.on('mini-player-update', (event, data) => update(data));
+
+      const send = (command) => ipcRenderer.send('mini-player-command', command);
+      document.getElementById('btn-play').addEventListener('click', () => send('toggle-play'));
+      document.getElementById('btn-prev').addEventListener('click', () => send('prev'));
+      document.getElementById('btn-next').addEventListener('click', () => send('next'));
+      document.getElementById('btn-close').addEventListener('click', () => send('close'));
+      document.body.addEventListener('dblclick', (e) => {
+        if (!e.target.closest('button')) send('restore');
+      });
+
+      // Drag the window from anywhere except the buttons. Done by hand rather
+      // than with -webkit-app-region so clicks and double-clicks still arrive.
+      let drag = null;
+      let frame = 0;
+      document.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || e.target.closest('button')) return;
+        drag = { x: e.screenX, y: e.screenY, dx: 0, dy: 0 };
+        document.body.setPointerCapture(e.pointerId);
+        document.body.classList.add('dragging');
+        ipcRenderer.send('mini-player-drag', 'start');
+      });
+      document.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        drag.dx = e.screenX - drag.x;
+        drag.dy = e.screenY - drag.y;
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          if (drag) ipcRenderer.send('mini-player-drag', 'move', drag.dx, drag.dy);
+        });
+      });
+      const endDrag = () => {
+        if (!drag) return;
+        drag = null;
+        document.body.classList.remove('dragging');
+        ipcRenderer.send('mini-player-drag', 'end');
+      };
+      document.addEventListener('pointerup', endDrag);
+      document.addEventListener('pointercancel', endDrag);
+    }
   </script>
 </body>
 </html>

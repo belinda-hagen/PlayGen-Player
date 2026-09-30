@@ -8,6 +8,11 @@ contextBridge.exposeInMainWorld('api', {
 
   // Dependencies
   checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
+  getYtdlpStatus: () => ipcRenderer.invoke('get-ytdlp-status'),
+  updateYtdlp: () => ipcRenderer.invoke('update-ytdlp'),
+  onYtdlpStatus: (callback) => {
+    ipcRenderer.on('ytdlp-status', (event, status) => callback(status));
+  },
 
   // Downloads
   downloadVideo: (url) => ipcRenderer.invoke('download-video', url),

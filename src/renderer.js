@@ -22,6 +22,7 @@
     isDownloading: false,
     cancelDownload: false,
     theme: 'rose',
+    miniPlayerStyle: 'classic',  // 'classic', 'compact', 'cover', 'glass'
     dragSongId: null,
     dragSongIds: null,            // all song ids being dragged (multi-select)
     selectedSongIds: new Set(),   // multi-selected songs in the current view
@@ -150,7 +151,12 @@
     settingsClose: $('#settings-close'),
     settingMiniPlayer: $('#setting-mini-player'),
     settingStartupAnimation: $('#setting-startup-animation'),
+    ytdlpVersion: $('#ytdlp-version'),
+    ytdlpStatus: $('#ytdlp-status'),
+    btnYtdlpUpdate: $('#btn-ytdlp-update'),
     settingThemeInputs: $$('input[name="setting-theme"]'),
+    settingMiniStyleInputs: $$('input[name="setting-mini-style"]'),
+    miniStylePreviews: $$('.mini-style-preview'),
 
     // Sidebar
     sidebar: $('#sidebar'),
@@ -614,6 +620,7 @@
     // Load settings
     const settings = await window.api.getSettings();
     applyTheme(settings.theme);
+    state.miniPlayerStyle = normalizeMiniPlayerStyle(settings.miniPlayerStyle);
 
     // Load session
     const session = await window.api.getSession();
@@ -750,9 +757,20 @@
         </svg>
         <span class="playlist-name">${escapeHtml(pl.name)}</span>
         <span class="playlist-count">${pl.songs.length}</span>
+        <button class="playlist-delete-btn" title="Delete playlist" aria-label="Delete ${escapeHtml(pl.name)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/>
+            <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          </svg>
+        </button>
       `;
 
       item.addEventListener('click', () => switchView(pl.id));
+      item.querySelector('.playlist-delete-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        confirmDeletePlaylist(pl);
+      });
       item.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         showPlaylistContextMenu(e.clientX, e.clientY, pl);
@@ -789,7 +807,7 @@
         }))
       },
       { label: 'Rename', action: () => renamePlaylist(pl) },
-      { label: 'Delete', danger: true, action: () => deletePlaylist(pl) }
+      { label: 'Delete', danger: true, action: () => confirmDeletePlaylist(pl) }
     ]);
   }
 
@@ -1572,6 +1590,11 @@
   // ── View Switching ──────────────────────────────────────────────
   function switchView(viewId) {
     state.currentView = viewId;
+    // A search belongs to the view it was typed in; carrying it over would
+    // leave Home filtered, or filter a playlist's songs by its own name.
+    clearTimeout(searchTimeout);
+    state.searchQuery = '';
+    dom.searchInput.value = '';
     state.selectedSongIds.clear();
     state.lastSelectedSongId = null;
     highlightActiveNav();
@@ -2024,6 +2047,19 @@
       title: pl.name,
       detail: `Next song delay: ${getDelayLabel(delay)}`
     });
+  }
+
+  async function confirmDeletePlaylist(pl) {
+    const choice = await showModal(
+      'Delete playlist?',
+      `Delete "${pl.name}"? Songs stay in your library.`,
+      '',
+      'Delete',
+      'Keep',
+      { icon: 'trash', eyebrow: 'Playlist' }
+    );
+    if (choice !== 'playlist') return;
+    await deletePlaylist(pl);
   }
 
   async function deletePlaylist(pl) {
@@ -2802,12 +2838,84 @@
   async function openSettings() {
     const settings = await window.api.getSettings();
     applyTheme(settings.theme);
+    state.miniPlayerStyle = normalizeMiniPlayerStyle(settings.miniPlayerStyle);
     dom.settingMiniPlayer.checked = settings.miniPlayerOnMinimize ?? true;
     dom.settingStartupAnimation.checked = settings.startupAnimation !== false;
     dom.settingThemeInputs.forEach(input => {
       input.checked = input.value === state.theme;
     });
+    dom.settingMiniStyleInputs.forEach(input => {
+      input.checked = input.value === state.miniPlayerStyle;
+    });
     dom.settingsOverlay.classList.add('visible');
+    renderMiniStylePreviews();
+    renderYtdlpStatus(await window.api.getYtdlpStatus());
+  }
+
+  function renderYtdlpStatus(status) {
+    dom.ytdlpVersion.textContent = status.version || '–';
+    dom.btnYtdlpUpdate.hidden = !status.managed;
+    dom.btnYtdlpUpdate.disabled = status.checking;
+    dom.btnYtdlpUpdate.textContent = status.checking ? 'Checking…' : 'Check for updates';
+    dom.ytdlpStatus.classList.toggle('error', !!status.error && !status.checking);
+
+    let text;
+    if (!status.managed) text = 'Uses the yt-dlp installed on this computer.';
+    else if (status.checking) text = 'Checking for updates…';
+    else if (status.error) text = status.error;
+    else if (status.lastCheck) text = `Updates automatically. Last checked ${formatLastCheck(status.lastCheck)}.`;
+    else text = 'Updates automatically once a day.';
+    dom.ytdlpStatus.textContent = text;
+  }
+
+  function formatLastCheck(time) {
+    const minutes = Math.round((Date.now() - time) / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    const date = new Date(time);
+    const today = new Date().toDateString() === date.toDateString();
+    return today
+      ? `today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : date.toLocaleDateString();
+  }
+
+  const MINI_PLAYER_STYLES = ['classic', 'compact', 'cover', 'glass'];
+
+  function normalizeMiniPlayerStyle(style) {
+    return MINI_PLAYER_STYLES.includes(style) ? style : 'classic';
+  }
+
+  // Each preview is the real mini player page in an iframe, rendered at its
+  // true window size and scaled down to fit the card.
+  function renderMiniStylePreviews() {
+    const data = { type: 'mini-preview', state: getMiniPlayerState() };
+    // Without a song there is nothing to show, so preview with sample text.
+    if (!state.currentSong) {
+      data.state.title = 'Song title';
+      data.state.channel = 'Artist';
+    }
+    dom.miniStylePreviews.forEach(box => {
+      const style = box.closest('.mini-style-option').querySelector('input').value;
+      let frame = box.querySelector('iframe');
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.src = `mini-player.html?preview&style=${style}`;
+        frame.tabIndex = -1;
+        frame.setAttribute('aria-hidden', 'true');
+        frame.width = box.dataset.width;
+        frame.height = box.dataset.height;
+        frame.addEventListener('load', () => frame.contentWindow.postMessage(frame._previewData, '*'));
+        box.appendChild(frame);
+      }
+      const scale = Math.min(
+        (box.clientWidth - 16) / box.dataset.width,
+        (box.clientHeight - 16) / box.dataset.height,
+        1
+      );
+      frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
+      frame._previewData = { ...data, state: { ...data.state, style } };
+      frame.contentWindow?.postMessage(frame._previewData, '*');
+    });
   }
 
   function closeSettings() {
@@ -2815,16 +2923,23 @@
   }
 
   // ── Mini Player State ───────────────────────────────────────────
-  function sendMiniPlayerState() {
-    if (!window.api.sendMiniPlayerState) return;
-    window.api.sendMiniPlayerState({
+  function getMiniPlayerState() {
+    return {
       title: state.currentSong?.title || 'No song playing',
       channel: state.currentSong?.channel || '',
       thumbnail: state.currentSong?.thumbnail || '',
       isPlaying: state.isPlaying,
       progress: audio.duration ? (audio.currentTime / audio.duration) * 100 : 0,
-      theme: state.theme
-    });
+      currentTime: audio.currentTime || 0,
+      duration: audio.duration || 0,
+      theme: state.theme,
+      style: state.miniPlayerStyle
+    };
+  }
+
+  function sendMiniPlayerState() {
+    if (!window.api.sendMiniPlayerState) return;
+    window.api.sendMiniPlayerState(getMiniPlayerState());
   }
 
   // ── Session ─────────────────────────────────────────────────────
@@ -2890,6 +3005,10 @@
     dom.settingMiniPlayer.addEventListener('change', () => {
       window.api.saveSettings({ miniPlayerOnMinimize: dom.settingMiniPlayer.checked });
     });
+    dom.btnYtdlpUpdate.addEventListener('click', async () => {
+      renderYtdlpStatus(await window.api.updateYtdlp());
+    });
+    window.api.onYtdlpStatus(renderYtdlpStatus);
     dom.settingStartupAnimation.addEventListener('change', () => {
       const enabled = dom.settingStartupAnimation.checked;
       window.api.saveSettings({ startupAnimation: enabled });
@@ -2900,6 +3019,15 @@
         if (!input.checked) return;
         applyTheme(input.value);
         window.api.saveSettings({ theme: state.theme });
+        sendMiniPlayerState();
+        renderMiniStylePreviews();
+      });
+    });
+    dom.settingMiniStyleInputs.forEach(input => {
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        state.miniPlayerStyle = normalizeMiniPlayerStyle(input.value);
+        window.api.saveSettings({ miniPlayerStyle: state.miniPlayerStyle });
         sendMiniPlayerState();
       });
     });

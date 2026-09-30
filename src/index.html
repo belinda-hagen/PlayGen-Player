@@ -362,6 +362,29 @@
             </div>
           </label>
           <p class="settings-hint">When enabled, a small floating player appears when you minimize the main window.</p>
+          <div class="settings-subtitle">Style</div>
+          <div class="mini-style-options" role="radiogroup" aria-label="Mini player style">
+            <label class="mini-style-option">
+              <input type="radio" name="setting-mini-style" value="classic" checked>
+              <span class="mini-style-preview" data-width="320" data-height="84"></span>
+              <span class="mini-style-name">Classic</span>
+            </label>
+            <label class="mini-style-option">
+              <input type="radio" name="setting-mini-style" value="compact">
+              <span class="mini-style-preview" data-width="260" data-height="52"></span>
+              <span class="mini-style-name">Compact</span>
+            </label>
+            <label class="mini-style-option">
+              <input type="radio" name="setting-mini-style" value="cover">
+              <span class="mini-style-preview" data-width="220" data-height="220"></span>
+              <span class="mini-style-name">Cover</span>
+            </label>
+            <label class="mini-style-option">
+              <input type="radio" name="setting-mini-style" value="glass">
+              <span class="mini-style-preview" data-width="380" data-height="104"></span>
+              <span class="mini-style-name">Glass</span>
+            </label>
+          </div>
         </div>
         <div class="settings-group">
           <h4 class="settings-group-title">Startup</h4>
@@ -373,6 +396,16 @@
             </div>
           </label>
           <p class="settings-hint">Shows a short logo animation when PlayGen starts.</p>
+        </div>
+        <div class="settings-group">
+          <h4 class="settings-group-title">Downloads</h4>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">yt-dlp <span class="settings-value" id="ytdlp-version">–</span></div>
+              <p class="settings-hint" id="ytdlp-status">Updates automatically once a day.</p>
+            </div>
+            <button class="settings-action-btn" id="btn-ytdlp-update">Check for updates</button>
+          </div>
         </div>
         <div class="settings-group">
           <h4 class="settings-group-title">Color Theme</h4>
