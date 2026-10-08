@@ -1904,6 +1904,9 @@ body.audio-playing .song-item.playing .playing-bar {
 }
 
 .theme-option {
+  /* Anchors the hidden radio; otherwise it is placed against the panel and
+     focusing it scrolls the panel, hiding the header. */
+  position: relative;
   min-height: 38px;
   display: flex;
   align-items: center;
@@ -3276,6 +3279,7 @@ body {
 }
 
 .mini-style-option {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
