@@ -25,6 +25,8 @@
     body {
       --button-accent: #e83f79;
       --button-accent-hover: #f2558a;
+      --accent-glow: color-mix(in srgb, var(--button-accent) 55%, transparent);
+      --accent-soft: color-mix(in srgb, var(--button-accent) 22%, transparent);
       --progress: 0;
       color: #fff;
       font-family: "Inter", "Segoe UI", Arial, sans-serif;
@@ -61,6 +63,35 @@
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.015) 100%),
         #111317;
+      animation: shell-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+    }
+
+    @keyframes shell-in {
+      from { opacity: 0; transform: scale(0.94); }
+    }
+
+    /* Accent-coloured ambient light behind everything. */
+    .shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(120% 140% at 0% 0%, var(--accent-soft) 0%, transparent 55%),
+        radial-gradient(80% 120% at 100% 100%, color-mix(in srgb, var(--button-accent-hover) 12%, transparent) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* Glassy inner edge drawn above the content; clicks pass through. */
+    .shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      border-radius: inherit;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+      pointer-events: none;
     }
 
     .mini-bg {
@@ -69,6 +100,14 @@
       display: none;
       background-position: center;
       background-size: cover;
+    }
+
+    /* Classic picks up a soft wash of colour from the artwork. */
+    body[data-style="classic"] .mini-bg {
+      display: block;
+      inset: -30px;
+      filter: blur(24px) saturate(1.6);
+      opacity: 0.22;
     }
 
     .mini-player {
@@ -91,11 +130,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.12);
-      background: linear-gradient(145deg, #2a2f38 0%, #171a1f 100%);
-      color: #727272;
+      background:
+        radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--button-accent) 45%, transparent), transparent 70%),
+        linear-gradient(145deg, #2a2f38 0%, #171a1f 100%);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      color: rgba(255, 255, 255, 0.6);
     }
 
     .mini-thumb img {
@@ -104,6 +147,11 @@
       object-fit: cover;
       display: none;
       pointer-events: none;
+      transition: transform 400ms ease;
+    }
+
+    .shell:hover .mini-thumb img {
+      transform: scale(1.08);
     }
 
     .mini-thumb img.visible {
@@ -128,14 +176,54 @@
       white-space: nowrap;
     }
 
+    .mini-title-row {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
     .mini-title {
       font-size: 13px;
       font-weight: 600;
+      letter-spacing: -0.01em;
     }
 
     .mini-channel {
       font-size: 11px;
       color: #aeb4bd;
+    }
+
+    /* Little equalizer that dances next to the title while playing. */
+    .mini-eq {
+      display: none;
+      align-items: flex-end;
+      gap: 2px;
+      height: 11px;
+      flex-shrink: 0;
+    }
+
+    body.playing .mini-eq {
+      display: inline-flex;
+    }
+
+    .mini-eq span {
+      width: 2.5px;
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(180deg, var(--button-accent-hover), var(--button-accent));
+      box-shadow: 0 0 6px var(--accent-glow);
+      transform-origin: bottom;
+      animation: eq 900ms ease-in-out infinite alternate;
+    }
+
+    .mini-eq span:nth-child(2) { animation-duration: 640ms; animation-delay: -300ms; }
+    .mini-eq span:nth-child(3) { animation-duration: 780ms; animation-delay: -520ms; }
+
+    @keyframes eq {
+      0% { transform: scaleY(0.25); }
+      50% { transform: scaleY(1); }
+      100% { transform: scaleY(0.45); }
     }
 
     .mini-timeline {
@@ -168,17 +256,48 @@
       background: rgba(255, 255, 255, 0.09);
     }
 
+    .mini-btn:active {
+      transform: scale(0.88);
+    }
+
     .mini-btn.play-btn {
       width: 36px;
       height: 36px;
       color: #fff;
-      background: linear-gradient(135deg, var(--button-accent), var(--button-accent-hover));
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+      background: linear-gradient(135deg, var(--button-accent-hover), var(--button-accent));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.15),
+        0 4px 14px var(--accent-glow);
+      transition: background 160ms ease, transform 160ms ease, box-shadow 200ms ease;
+    }
+
+    .mini-btn.play-btn svg {
+      filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+    }
+
+    /* The play button breathes softly while music is playing. */
+    body.playing .mini-btn.play-btn {
+      animation: breathe 2.6s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      50% {
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.35),
+          inset 0 -2px 4px rgba(0, 0, 0, 0.15),
+          0 4px 22px var(--accent-glow),
+          0 0 0 4px var(--accent-soft);
+      }
     }
 
     .mini-btn.play-btn:hover {
-      transform: scale(1.06);
-      background: linear-gradient(135deg, var(--button-accent-hover), var(--button-accent));
+      transform: scale(1.08);
+      background: linear-gradient(135deg, var(--button-accent-hover), var(--button-accent-hover));
+    }
+
+    .mini-btn.play-btn:active {
+      transform: scale(0.92);
     }
 
     /* Close only appears while hovering the player. */
@@ -207,21 +326,38 @@
       right: 0;
       bottom: 0;
       height: 3px;
-      background: rgba(255, 255, 255, 0.14);
-      overflow: hidden;
+      background: rgba(255, 255, 255, 0.1);
     }
 
     .progress-fill {
+      position: relative;
       height: 100%;
       width: calc(var(--progress) * 1%);
-      background: linear-gradient(90deg, var(--button-accent), var(--button-accent-hover));
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--button-accent), var(--button-accent-hover), var(--button-accent));
+      background-size: 200% 100%;
+      box-shadow: 0 0 10px var(--accent-glow);
       transition: width 0.5s linear;
+    }
+
+    /* A slow shimmer runs along the bar while playing. */
+    body.playing .progress-fill {
+      animation: shimmer 3s linear infinite;
+    }
+
+    @keyframes shimmer {
+      to { background-position: -200% 0; }
     }
 
     /* ── Compact: a floating pill with a spinning disc ──────────── */
     body[data-style="compact"] .shell {
       border-radius: 999px;
-      background: #15171c;
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--button-accent) 14%, #15171c) 0%, #15171c 55%);
+    }
+
+    body[data-style="compact"] .shell::before {
+      background: radial-gradient(60% 160% at 0% 50%, var(--accent-soft), transparent 70%);
     }
 
     body[data-style="compact"] .mini-player {
@@ -233,7 +369,8 @@
     body[data-style="compact"] .mini-thumb-wrap {
       padding: 2px;
       border-radius: 50%;
-      background: conic-gradient(var(--button-accent) calc(var(--progress) * 1%), rgba(255, 255, 255, 0.14) 0);
+      background: conic-gradient(var(--button-accent-hover), var(--button-accent) calc(var(--progress) * 1%), rgba(255, 255, 255, 0.12) 0);
+      filter: drop-shadow(0 0 5px var(--accent-glow));
     }
 
     body[data-style="compact"] .mini-thumb {
@@ -241,8 +378,22 @@
       height: 36px;
       border: 2px solid #15171c;
       border-radius: 50%;
+      box-shadow: none;
       animation: spin 8s linear infinite;
       animation-play-state: paused;
+    }
+
+    /* Vinyl grooves, a sheen and a centre hole turn the artwork into a record. */
+    body[data-style="compact"] .mini-thumb:has(img.visible)::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, #15171c 0 2.5px, rgba(255, 255, 255, 0.5) 3px 3.5px, transparent 4px),
+        repeating-radial-gradient(circle, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 2.5px),
+        conic-gradient(from 30deg, transparent 0 15%, rgba(255, 255, 255, 0.22) 22%, transparent 30% 65%, rgba(255, 255, 255, 0.16) 72%, transparent 80%);
+      pointer-events: none;
     }
 
     body[data-style="compact"].playing .mini-thumb {
@@ -270,13 +421,16 @@
     body[data-style="compact"] .mini-btn.play-btn {
       width: 32px;
       height: 32px;
-      box-shadow: none;
     }
 
     body[data-style="compact"] .mini-btn.close-btn {
       top: 50%;
       right: 7px;
       transform: translateY(-50%);
+    }
+
+    body[data-style="compact"] .mini-btn.close-btn:active {
+      transform: translateY(-50%) scale(0.88);
     }
 
     /* ── Cover: full-bleed artwork, controls on hover ───────────── */
@@ -287,7 +441,21 @@
 
     body[data-style="cover"] .mini-bg {
       display: block;
-      background-image: linear-gradient(145deg, var(--button-accent), #16181d);
+      background-image:
+        radial-gradient(circle at 30% 25%, var(--button-accent-hover), transparent 60%),
+        linear-gradient(145deg, var(--button-accent), #16181d);
+      animation: ken-burns 24s ease-in-out infinite alternate;
+      animation-play-state: paused;
+    }
+
+    /* The artwork drifts slowly while playing. */
+    body[data-style="cover"].playing .mini-bg {
+      animation-play-state: running;
+    }
+
+    @keyframes ken-burns {
+      from { transform: scale(1.02) translate(0, 0); }
+      to { transform: scale(1.14) translate(-3%, 2%); }
     }
 
     body[data-style="cover"] .mini-bg::after {
@@ -302,7 +470,16 @@
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      padding: 14px 16px 18px;
+      align-items: stretch;
+      padding: 14px 16px 20px;
+    }
+
+    body[data-style="cover"] .mini-info {
+      text-align: center;
+    }
+
+    body[data-style="cover"] .mini-title-row {
+      justify-content: center;
     }
 
     body[data-style="cover"] .mini-thumb-wrap {
@@ -310,8 +487,8 @@
     }
 
     body[data-style="cover"] .mini-title {
-      font-size: 14px;
-      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+      font-size: 15px;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
     }
 
     body[data-style="cover"] .mini-channel {
@@ -332,6 +509,19 @@
       width: 36px;
       height: 36px;
       color: #fff;
+    }
+
+    /* Frosted glass discs for skip buttons. */
+    body[data-style="cover"] #btn-prev,
+    body[data-style="cover"] #btn-next {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+    }
+
+    body[data-style="cover"] #btn-prev:hover,
+    body[data-style="cover"] #btn-next:hover {
+      background: rgba(255, 255, 255, 0.24);
     }
 
     body[data-style="cover"] .mini-btn.play-btn {
@@ -362,15 +552,16 @@
       height: 22px;
       color: #fff;
       background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
     }
 
     body[data-style="cover"] .mini-progress {
       left: 16px;
       right: 16px;
-      bottom: 9px;
+      bottom: 10px;
       height: 3px;
       border-radius: 3px;
-      background: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.22);
     }
 
     /* ── Glass: frosted bar tinted by the artwork, with timeline ── */
@@ -392,6 +583,14 @@
       position: absolute;
       inset: 0;
       background: rgba(10, 12, 16, 0.45);
+    }
+
+    /* Brighter specular edge than the other styles. */
+    body[data-style="glass"] .shell::after {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        inset 0 -20px 30px -20px var(--accent-soft);
     }
 
     body[data-style="glass"] .mini-player {
@@ -429,8 +628,22 @@
       flex: 1;
       height: 4px;
       border-radius: 4px;
-      overflow: hidden;
       background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Glowing knob at the playhead (also used by Cover's bar). */
+    body[data-style="glass"] .mini-timeline-bar .progress-fill::after,
+    body[data-style="cover"] .mini-progress .progress-fill::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 2px var(--accent-soft), 0 0 8px var(--accent-glow);
+      transform: translate(50%, -50%);
     }
 
     body[data-style="glass"] .mini-controls {
@@ -460,6 +673,14 @@
       cursor: default;
       transition: none !important;
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -477,7 +698,10 @@
         </div>
       </div>
       <div class="mini-info">
-        <div class="mini-title" id="mini-title">No song playing</div>
+        <div class="mini-title-row">
+          <span class="mini-eq" aria-hidden="true"><span></span><span></span><span></span></span>
+          <div class="mini-title" id="mini-title">No song playing</div>
+        </div>
         <div class="mini-channel" id="mini-channel"></div>
         <div class="mini-timeline">
           <span id="mini-time-current">0:00</span>
