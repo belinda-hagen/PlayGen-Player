@@ -1921,6 +1921,16 @@ body.audio-playing .song-item.playing .playing-bar {
   transition: background var(--t-fast), border-color var(--t-fast);
 }
 
+.size-options {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.size-options .theme-option {
+  justify-content: center;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
 .theme-option:hover {
   background: var(--bg-hover);
 }
@@ -3324,7 +3334,34 @@ body {
     #0c0e11;
 }
 
-.mini-style-preview iframe {
+.mini-size-preview {
+  position: relative;
+  height: 180px;
+  margin-top: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.06), transparent 60%),
+    #0c0e11;
+}
+
+.mini-size-preview iframe {
+  transition: transform var(--t-slow);
+}
+
+.mini-size-dims {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 1;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-style-preview iframe,
+.mini-size-preview iframe {
   position: absolute;
   top: 50%;
   left: 50%;

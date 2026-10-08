@@ -156,7 +156,10 @@
     btnYtdlpUpdate: $('#btn-ytdlp-update'),
     settingThemeInputs: $$('input[name="setting-theme"]'),
     settingMiniStyleInputs: $$('input[name="setting-mini-style"]'),
+    settingMiniSizeInputs: $$('input[name="setting-mini-size"]'),
     miniStylePreviews: $$('.mini-style-preview'),
+    miniSizePreview: $('#mini-size-preview'),
+    miniSizeDims: $('#mini-size-dims'),
 
     // Sidebar
     sidebar: $('#sidebar'),
@@ -2847,6 +2850,9 @@
     dom.settingMiniStyleInputs.forEach(input => {
       input.checked = input.value === state.miniPlayerStyle;
     });
+    dom.settingMiniSizeInputs.forEach(input => {
+      input.checked = input.value === (settings.miniPlayerSize || 'medium');
+    });
     dom.settingsOverlay.classList.add('visible');
     renderMiniStylePreviews();
     renderYtdlpStatus(await window.api.getYtdlpStatus());
@@ -2887,35 +2893,75 @@
 
   // Each preview is the real mini player page in an iframe, rendered at its
   // true window size and scaled down to fit the card.
-  function renderMiniStylePreviews() {
+  function getMiniPreviewData() {
     const data = { type: 'mini-preview', state: getMiniPlayerState() };
     // Without a song there is nothing to show, so preview with sample text.
     if (!state.currentSong) {
       data.state.title = 'Song title';
       data.state.channel = 'Artist';
     }
+    return data;
+  }
+
+  function getPreviewFrame(box, style) {
+    let frame = box.querySelector('iframe');
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.src = `mini-player.html?preview&style=${style}`;
+      frame.tabIndex = -1;
+      frame.setAttribute('aria-hidden', 'true');
+      frame.addEventListener('load', () => frame.contentWindow.postMessage(frame._previewData, '*'));
+      box.appendChild(frame);
+    }
+    return frame;
+  }
+
+  function postPreviewData(frame, data, style) {
+    frame._previewData = { ...data, state: { ...data.state, style } };
+    frame.contentWindow?.postMessage(frame._previewData, '*');
+  }
+
+  function renderMiniStylePreviews() {
+    const data = getMiniPreviewData();
     dom.miniStylePreviews.forEach(box => {
       const style = box.closest('.mini-style-option').querySelector('input').value;
-      let frame = box.querySelector('iframe');
-      if (!frame) {
-        frame = document.createElement('iframe');
-        frame.src = `mini-player.html?preview&style=${style}`;
-        frame.tabIndex = -1;
-        frame.setAttribute('aria-hidden', 'true');
-        frame.width = box.dataset.width;
-        frame.height = box.dataset.height;
-        frame.addEventListener('load', () => frame.contentWindow.postMessage(frame._previewData, '*'));
-        box.appendChild(frame);
-      }
+      const frame = getPreviewFrame(box, style);
+      frame.width = box.dataset.width;
+      frame.height = box.dataset.height;
       const scale = Math.min(
         (box.clientWidth - 16) / box.dataset.width,
         (box.clientHeight - 16) / box.dataset.height,
         1
       );
       frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
-      frame._previewData = { ...data, state: { ...data.state, style } };
-      frame.contentWindow?.postMessage(frame._previewData, '*');
+      postPreviewData(frame, data, style);
     });
+    renderMiniSizePreview();
+  }
+
+  // Shows the chosen style at the chosen size. The view is zoomed out just
+  // enough to fit the largest size, so switching sizes visibly grows or
+  // shrinks the player.
+  function renderMiniSizePreview() {
+    const box = dom.miniSizePreview;
+    const sizeInputs = [...dom.settingMiniSizeInputs];
+    const sizeScale = Number(sizeInputs.find(input => input.checked)?.dataset.scale) || 1;
+    const maxScale = Math.max(...sizeInputs.map(input => Number(input.dataset.scale)));
+    const style = state.miniPlayerStyle;
+    const { width, height } = $(`input[name="setting-mini-style"][value="${style}"]`)
+      .closest('.mini-style-option').querySelector('.mini-style-preview').dataset;
+
+    const frame = getPreviewFrame(box, style);
+    frame.width = width;
+    frame.height = height;
+    const fit = Math.min(
+      (box.clientWidth - 24) / (width * maxScale),
+      (box.clientHeight - 24) / (height * maxScale),
+      1
+    );
+    frame.style.transform = `translate(-50%, -50%) scale(${sizeScale * fit})`;
+    postPreviewData(frame, getMiniPreviewData(), style);
+    dom.miniSizeDims.textContent = `${Math.round(width * sizeScale)} × ${Math.round(height * sizeScale)} px`;
   }
 
   function closeSettings() {
@@ -3029,6 +3075,14 @@
         state.miniPlayerStyle = normalizeMiniPlayerStyle(input.value);
         window.api.saveSettings({ miniPlayerStyle: state.miniPlayerStyle });
         sendMiniPlayerState();
+        renderMiniSizePreview();
+      });
+    });
+    dom.settingMiniSizeInputs.forEach(input => {
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        window.api.saveSettings({ miniPlayerSize: input.value });
+        renderMiniSizePreview();
       });
     });
     // Sidebar toggle

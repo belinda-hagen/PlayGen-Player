@@ -353,12 +353,21 @@ const MINI_PLAYER_SIZES = {
   glass: { width: 380, height: 104 }
 };
 
+// User-chosen size; the page scales its content to match (see src/mini-player.html).
+const MINI_PLAYER_SCALES = { small: 0.85, medium: 1, large: 1.25, xlarge: 1.5 };
+
+function getMiniPlayerScale() {
+  return MINI_PLAYER_SCALES[db.settings?.miniPlayerSize] || 1;
+}
+
 // Place the mini player at `origin` (or the position the user last dragged it
 // to), kept inside that display's work area. Without either, it goes in the
 // bottom-right corner of the primary display, 20px in from the edges.
 function getMiniPlayerBounds(style, origin = db.settings?.miniPlayerPosition) {
   const { screen } = require('electron');
-  const size = MINI_PLAYER_SIZES[style] || MINI_PLAYER_SIZES.classic;
+  const base = MINI_PLAYER_SIZES[style] || MINI_PLAYER_SIZES.classic;
+  const scale = getMiniPlayerScale();
+  const size = { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
   if (!origin) {
     const area = screen.getPrimaryDisplay().workArea;
     return { ...size, x: area.x + area.width - size.width - 20, y: area.y + area.height - size.height - 20 };
@@ -392,7 +401,7 @@ function createMiniPlayer() {
     icon: path.join(__dirname, 'assets', 'playgen-icon.png')
   });
 
-  miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'), { query: { style } });
+  miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'), { query: { style, scale: String(getMiniPlayerScale()) } });
   miniPlayerWindow.setMenuBarVisibility(false);
 
   miniPlayerWindow.on('closed', () => {
@@ -1089,16 +1098,17 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
 
 // ── IPC: Settings ─────────────────────────────────────────────────
 ipcMain.handle('get-settings', () => {
-  return { miniPlayerOnMinimize: true, miniPlayerStyle: 'classic', theme: 'rose', startupAnimation: true, ...(db.settings || {}) };
+  return { miniPlayerOnMinimize: true, miniPlayerStyle: 'classic', miniPlayerSize: 'medium', theme: 'rose', startupAnimation: true, ...(db.settings || {}) };
 });
 
 ipcMain.handle('save-settings', (event, settings) => {
   db.settings = { ...(db.settings || {}), ...settings };
   saveDB(db);
-  // Resize an open mini player so a style change takes effect right away.
-  if (settings.miniPlayerStyle && miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+  // Resize an open mini player so a style or size change takes effect right away.
+  if ((settings.miniPlayerStyle || settings.miniPlayerSize) && miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
     const { x, y } = miniPlayerWindow.getBounds();
-    miniPlayerWindow.setBounds(getMiniPlayerBounds(settings.miniPlayerStyle, { x, y }));
+    miniPlayerWindow.setBounds(getMiniPlayerBounds(db.settings.miniPlayerStyle || 'classic', { x, y }));
+    miniPlayerWindow.webContents.send('mini-player-update', { scale: getMiniPlayerScale() });
   }
   return { success: true };
 });

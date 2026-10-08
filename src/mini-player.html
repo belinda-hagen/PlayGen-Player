@@ -22,6 +22,16 @@
       background: transparent;
     }
 
+    /* For the Size setting the window is enlarged by --ui-scale; the page is
+       laid out at its normal size and scaled up to fill it. */
+    body {
+      --ui-scale: 1;
+      width: calc(100vw / var(--ui-scale));
+      height: calc(100vh / var(--ui-scale));
+      scale: var(--ui-scale);
+      transform-origin: 0 0;
+    }
+
     body {
       --button-accent: #e83f79;
       --button-accent-hover: #f2558a;
@@ -768,7 +778,13 @@
       return `${m}:${String(s).padStart(2, '0')}`;
     }
 
+    function applyScale(scale) {
+      const value = Number(scale);
+      document.body.style.setProperty('--ui-scale', value > 0 ? value : 1);
+    }
+
     function update(data) {
+      if (data.scale !== undefined) applyScale(data.scale);
       if (data.theme !== undefined) applyTheme(data.theme);
       if (data.style !== undefined) applyStyle(data.style);
       if (data.title) els.title.textContent = data.title;
@@ -800,6 +816,7 @@
     }
 
     applyStyle(params.get('style'));
+    if (!isPreview) applyScale(params.get('scale'));
 
     if (isPreview) {
       document.body.classList.add('preview');
