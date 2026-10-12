@@ -156,6 +156,15 @@ function resolveDependencies() {
 // Resolve on startup
 const depsStatus = resolveDependencies();
 
+// yt-dlp needs a JavaScript runtime to solve YouTube's challenges, otherwise
+// formats go missing. Electron ships Node, so yt-dlp runs our own executable
+// as plain Node instead of users having to install Deno.
+const ytdlpEnv = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+
+function spawnYtdlp(args) {
+  return spawn(ytdlpPath, ['--js-runtimes', `node:${process.execPath}`, ...args], { windowsHide: true, env: ytdlpEnv });
+}
+
 // ── yt-dlp Auto-Update ────────────────────────────────────────────
 // YouTube changes often break downloads, and yt-dlp ships fixes faster than
 // app releases. So the bundled yt-dlp is copied into userData (always
@@ -507,7 +516,7 @@ ipcMain.handle('download-video', async (event, url) => {
     // Step 1: Get metadata
     const infoArgs = ['--dump-json', '--no-download', '--no-playlist', url];
     console.log('[PlayGen] Getting info:', ytdlpPath, infoArgs.join(' '));
-    const infoProc = spawn(ytdlpPath, infoArgs, { windowsHide: true });
+    const infoProc = spawnYtdlp(infoArgs);
     let infoData = '';
     let infoError = '';
 
@@ -563,7 +572,7 @@ ipcMain.handle('download-video', async (event, url) => {
       dlArgs.push(url);
 
       console.log('[PlayGen] Downloading:', ytdlpPath, dlArgs.join(' '));
-      const dlProc = spawn(ytdlpPath, dlArgs, { windowsHide: true });
+      const dlProc = spawnYtdlp(dlArgs);
 
       let dlError = '';
 
@@ -648,7 +657,7 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
   return new Promise((resolve) => {
     // Step 1: Get playlist entries via --flat-playlist
     const infoArgs = ['--flat-playlist', '--dump-json', url];
-    const infoProc = spawn(ytdlpPath, infoArgs, { windowsHide: true });
+    const infoProc = spawnYtdlp(infoArgs);
     let infoData = '';
     let infoError = '';
 
