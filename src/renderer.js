@@ -308,8 +308,6 @@
   }
 
   function showToast(message, type = 'info') {
-    // Normalize plain strings into the rich toast shape so every toast
-    // uses the same card style as the "added to playlist" notification.
     const data = (typeof message === 'object' && message !== null)
       ? message
       : { title: message };
@@ -408,7 +406,6 @@
       modalResolve = resolve;
       dom.modalTitle.textContent = title;
 
-      // Toast-style card chrome: icon media + eyebrow (shown when provided)
       if (opts.icon) {
         dom.modalMedia.innerHTML = getToastIcon(opts.icon, 'info');
         dom.modalMedia.style.display = '';
@@ -436,7 +433,6 @@
           dom.modalMessage.style.display = 'none';
         }
 
-        // Create alt button if not exists
         let altBtn = dom.modalOverlay.querySelector('.modal-btn-alt');
         if (!altBtn) {
           altBtn = document.createElement('button');
@@ -463,7 +459,6 @@
         dom.modalInput.value = defaultValue;
         dom.modalConfirm.textContent = confirmText;
 
-        // Remove alt button if exists
         const altBtn = dom.modalOverlay.querySelector('.modal-btn-alt');
         if (altBtn) altBtn.style.display = 'none';
 
@@ -494,9 +489,7 @@
   });
 
   // ── Edit Track Modal ────────────────────────────────────────────
-  // Two-field dialog (Title + Artist). Resolves with { title, artist } on save
-  // or null on cancel. Kept separate from showModal so its own Enter/Escape
-  // handling doesn't collide with the single-field playlist modal.
+  // Resolves with { title, artist }, or null on cancel.
   let editTrackResolve = null;
 
   function showEditTrackModal(song) {
@@ -573,7 +566,6 @@
       dom.contextMenuItems.appendChild(el);
     });
 
-    // Position
     dom.contextMenu.style.left = x + 'px';
     dom.contextMenu.style.top = y + 'px';
     dom.contextMenu.classList.add('visible');
@@ -606,7 +598,6 @@
 
   // ── Initialize ──────────────────────────────────────────────────
   async function init() {
-    // Check dependencies
     const deps = await window.api.checkDependencies();
     if (!deps.ytdlp || !deps.ffmpeg) {
       const missing = [];
@@ -616,16 +607,13 @@
       dom.depsWarning.style.display = 'block';
     }
 
-    // Load data
     state.songs = await window.api.getSongs();
     state.playlists = await window.api.getPlaylists();
 
-    // Load settings
     const settings = await window.api.getSettings();
     applyTheme(settings.theme);
     state.miniPlayerStyle = normalizeMiniPlayerStyle(settings.miniPlayerStyle);
 
-    // Load session
     const session = await window.api.getSession();
     if (session) {
       state.volume = session.volume ?? 0.8;
@@ -634,7 +622,6 @@
       audio.volume = state.volume;
     }
 
-    // Render
     renderSidebar();
     renderSongList();
     updatePlayerUI();
@@ -661,7 +648,6 @@
       }
     }
 
-    // Download progress listener
     window.api.onDownloadProgress((data) => {
       dom.downloadProgressContainer.classList.add('active');
       dom.downloadProgressTitle.textContent = `Downloading: ${data.title}`;
@@ -722,9 +708,8 @@
         e.preventDefault();
         item.classList.remove('drag-over');
 
-        // Files dropped from the OS: import them straight into this playlist.
-        // Flag it so the bubbling window handler skips a second library import
-        // (it still runs to reset the drag state).
+        // The window handler still runs to reset the drag state, but must not
+        // import the files a second time.
         if (isFileDrag(e)) {
           _fileDropHandled = true;
           await importLocalFiles(getDroppedFilePaths(e.dataTransfer), pl.id);
@@ -827,9 +812,8 @@
   }
 
   // ── Hero Cover Color ────────────────────────────────────────────
-  // Derive a colour gradient for the hero banner from the cover art so the
-  // background "adjusts" with the music. Falls back to the brand colours when
-  // a cover can't be read (e.g. no song, or a tainted/blocked image).
+  // Hero banner colours come from the cover art, with the brand colours as a
+  // fallback when the image can't be read.
   const heroPaletteCache = new Map();
   let _heroColorUrl = null;
   let _heroColorToken = 0;
@@ -1143,7 +1127,6 @@
       }
     }
 
-    // Apply search filter
     if (state.searchQuery) {
       const q = state.searchQuery.toLowerCase();
       songs = songs.filter(s =>
@@ -1288,8 +1271,6 @@
     updateSelectionUI();
   }
 
-  // Read dragged song ids from a drop event (multi-select aware, with a
-  // single-id fallback for older drag sources).
   function readSongIds(dataTransfer) {
     const multi = dataTransfer.getData('text/song-ids');
     if (multi) {
@@ -1430,7 +1411,7 @@
 
       state.dragSongId = song.id;
       state.dragSongIds = ids;
-      e.dataTransfer.setData('text/song-id', song.id);     // primary / legacy
+      e.dataTransfer.setData('text/song-id', song.id);
       e.dataTransfer.setData('text/song-ids', JSON.stringify(ids));
       e.dataTransfer.effectAllowed = 'copyMove';
 
@@ -1872,7 +1853,6 @@
         state.songs = await window.api.getSongs();
 
         if (playlistId) {
-          // Add every freshly imported song to the target playlist.
           for (const song of imported) {
             await window.api.addToPlaylist(playlistId, song.id);
           }
@@ -2086,7 +2066,6 @@
     const result = await showEditTrackModal(song);
     if (!result) return;
 
-    // No-op if nothing actually changed
     if (result.title === song.title && result.artist === (song.channel || '')) return;
 
     await window.api.updateSong(song.id, { title: result.title, channel: result.artist });
@@ -2109,8 +2088,7 @@
       thumbnail: song.thumbnail
     });
 
-    // Now that the metadata is correct, auto-find album art for tracks that
-    // don't have any yet. Silent on failure so a rename never nags the user.
+    // Quietly look up album art for tracks that have none.
     const updated = state.songs.find(s => s.id === song.id);
     if (updated && !updated.thumbnail) {
       fetchCoverArt(updated, { announce: false });
@@ -2258,34 +2236,28 @@
     if (fromView === 'home') fromView = 'all';
 
     const playId = ++_playId;
-    _currentPlayId = playId;  // Event handlers will check this
+    _currentPlayId = playId;
     _isTransitioning = true;
 
-    // Stop current audio immediately for responsive feel
     audio.pause();
 
-    // Update state immediately — fully synchronous, no async gaps
     state.currentSong = song;
     state.isPlaying = true;
-    state.playingFromView = fromView;  // Track which view started playback
+    state.playingFromView = fromView;
 
-    // Build queue from the source view
     buildQueue(fromView);
 
-    // Find index in queue
     state.currentQueueIndex = state.currentQueue.findIndex(s => s.id === song.id);
 
-    // Update UI immediately for instant visual feedback
     updatePlayerUI();
     updatePlayerSongInfo();
     renderSongList();
 
-    // Set player classes immediately (don't wait for audio 'play' event)
+    // Don't wait for the audio 'play' event.
     dom.playerThumbnail.classList.remove('paused');
     dom.btnPlay.classList.add('is-playing');
     document.body.classList.add('audio-playing');
 
-    // Use filePath directly from song object — no async IPC needed
     if (!song.filePath) {
       _isTransitioning = false;
       showToast({
@@ -3088,7 +3060,6 @@
     // Sidebar toggle
     dom.btnToggleSidebar.addEventListener('click', () => {
       dom.sidebar.classList.toggle('collapsed');
-      // Save preference
       const isCollapsed = dom.sidebar.classList.contains('collapsed');
       localStorage.setItem('sidebarCollapsed', isCollapsed);
     });

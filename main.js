@@ -11,7 +11,6 @@ const dbPath = path.join(userDataPath, 'playgen-db.json');
 // Custom playlist covers live outside the watched downloads folder.
 const coversPath = path.join(userDataPath, 'covers');
 
-// Ensure directories exist
 if (!fs.existsSync(downloadsPath)) fs.mkdirSync(downloadsPath, { recursive: true });
 if (!fs.existsSync(coversPath)) fs.mkdirSync(coversPath, { recursive: true });
 
@@ -46,9 +45,8 @@ function normalizePlaylists() {
 
 normalizePlaylists();
 
-// Drop any songs whose underlying file no longer exists (e.g. deleted from the
-// folder outside the app). Also strips them from playlists and cleans up
-// orphaned cover art. Returns the removed song objects.
+// Drop songs whose file was deleted outside the app, along with their
+// playlist entries and covers. Returns the removed songs.
 function pruneMissingSongs() {
   const removed = [];
   db.songs = (db.songs || []).filter(s => {
@@ -74,10 +72,8 @@ function pruneMissingSongs() {
 let ytdlpPath = 'yt-dlp';
 let ffmpegPath = 'ffmpeg';
 
-// Get the path to bundled binaries (works both in dev and production)
+// Packaged builds keep the binaries in resources/bin, outside the asar.
 function getBundledBinPath(name) {
-  // In production (asar), the app path is inside the asar, so we use resourcesPath
-  // In development, we use __dirname
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'bin', name);
   } else {
@@ -153,12 +149,10 @@ function resolveDependencies() {
   return { ytdlp: !!yt, ffmpeg: !!ff };
 }
 
-// Resolve on startup
 const depsStatus = resolveDependencies();
 
-// yt-dlp needs a JavaScript runtime to solve YouTube's challenges, otherwise
-// formats go missing. Electron ships Node, so yt-dlp runs our own executable
-// as plain Node instead of users having to install Deno.
+// yt-dlp needs a JavaScript runtime for YouTube. Electron ships Node, so it
+// runs this executable as Node.
 const ytdlpEnv = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
 
 function spawnYtdlp(args) {
@@ -166,10 +160,9 @@ function spawnYtdlp(args) {
 }
 
 // ── yt-dlp Auto-Update ────────────────────────────────────────────
-// YouTube changes often break downloads, and yt-dlp ships fixes faster than
-// app releases. So the bundled yt-dlp is copied into userData (always
-// writable, unlike the install folder) and kept current with its built-in
-// updater. The bundled copy stays as the fallback.
+// YouTube changes often break downloads, so the bundled yt-dlp is copied to
+// userData (writable, unlike the install folder) and kept current with its
+// own updater. The bundled copy is the fallback.
 const YTDLP_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 const ytdlpExeName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
 const bundledYtdlpPath = getBundledBinPath(ytdlpExeName);
@@ -417,7 +410,6 @@ function createMiniPlayer() {
     miniPlayerWindow = null;
   });
 
-  // Send current state after mini player loads
   miniPlayerWindow.webContents.on('did-finish-load', () => {
     mainWindow?.webContents.send('request-player-state');
   });
@@ -548,7 +540,6 @@ ipcMain.handle('download-video', async (event, url) => {
       const duration = info.duration || 0;
       const channel = info.channel || info.uploader || 'Unknown';
 
-      // Check if already downloaded
       const existing = db.songs.find(s => s.id === videoId);
       if (existing && fs.existsSync(existing.filePath)) {
         return resolve({ success: false, error: 'Song already downloaded' });
@@ -611,7 +602,6 @@ ipcMain.handle('download-video', async (event, url) => {
           return resolve({ success: false, error: dlError || 'Download failed' });
         }
 
-        // Save to database
         const song = {
           id: videoId,
           title,
@@ -635,13 +625,11 @@ ipcMain.handle('download-video', async (event, url) => {
 
 // ── IPC: Download YouTube Playlist ────────────────────────────────
 ipcMain.handle('download-playlist-url', async (event, url) => {
-  // Validate playlist URL
   const plRegex = /^(https?:\/\/)?(www\.|music\.)?(youtube\.com\/(playlist\?list=|watch\?.*list=))/;
   if (!plRegex.test(url)) {
     return { success: false, error: 'Invalid YouTube playlist URL' };
   }
 
-  // Extract playlist ID
   try {
     const u = new URL(url.startsWith('http') ? url : 'https://' + url);
     const listId = u.searchParams.get('list');
@@ -683,7 +671,6 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
       }
 
       const videoUrls = entries.map(e => {
-        // Prefer constructing from id for consistency
         if (e.id) return `https://www.youtube.com/watch?v=${e.id}`;
         if (e.url && e.url.startsWith('http')) return e.url;
         if (e.url) return `https://www.youtube.com/watch?v=${e.url}`;
@@ -735,10 +722,7 @@ async function probeMetadata(filePath) {
   };
 }
 
-// Best-effort guess of "Artist - Title" from a file name when the file has no
-// embedded tags. Handles a leading track number ("01 - ", "01. ") and the
-// common " - " / " – " / " — " separator. Parentheses are left intact so real
-// titles like "Song (Live)" survive.
+// Guess "Artist - Title" from the file name of an untagged file.
 function parseTitleArtistFromName(baseName) {
   let name = String(baseName || '').replace(/_/g, ' ').trim();
   name = name.replace(/^\s*\d{1,3}\s*[-.\s]\s*/, ''); // strip leading track number
@@ -831,7 +815,6 @@ ipcMain.handle('delete-song', (event, songId) => {
     try { fs.unlinkSync(song.filePath); } catch (e) { /* ignore */ }
     if (song.coverPath) { try { fs.unlinkSync(song.coverPath); } catch (e) { /* ignore */ } }
     db.songs = db.songs.filter(s => s.id !== songId);
-    // Remove from all playlists
     db.playlists.forEach(p => {
       p.songs = p.songs.filter(id => id !== songId);
     });
@@ -840,8 +823,7 @@ ipcMain.handle('delete-song', (event, songId) => {
   return { success: true };
 });
 
-// Rename / edit a song's display info (title and/or artist). Only touches the
-// database entry — the underlying audio file is left untouched.
+// Edits only the database entry; the audio file is left as is.
 ipcMain.handle('update-song', (event, payload = {}) => {
   const { songId } = payload;
   const updates = payload.updates || {};
@@ -860,9 +842,8 @@ ipcMain.handle('update-song', (event, payload = {}) => {
   return { success: true, song };
 });
 
-// Find album art online from a song's title + artist via the free iTunes Search
-// API (no key required). Done in the main process so there is no CORS issue.
-// Downloads the best match to a fresh cover file and updates the song's thumbnail.
+// Album art lookup via the iTunes Search API (no key needed). Runs here to
+// avoid CORS.
 ipcMain.handle('fetch-cover-art', async (event, payload = {}) => {
   const { songId } = payload;
   const song = db.songs.find(s => s.id === songId);
@@ -1068,7 +1049,6 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
   if (!playlist) return { success: false, error: 'Playlist not found' };
   if (!playlist.songs || playlist.songs.length === 0) return { success: false, error: 'Playlist is empty' };
 
-  // Let user pick a parent folder
   const result = await dialog.showOpenDialog(mainWindow, {
     title: `Export "${playlist.name}"`,
     properties: ['openDirectory'],
@@ -1099,7 +1079,6 @@ ipcMain.handle('export-playlist', async (event, { playlistId }) => {
     }
   }
 
-  // Open the exported folder
   shell.openPath(exportDir);
 
   return { success: true, copied, failed, exportDir };

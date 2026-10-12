@@ -25,9 +25,7 @@
   --hero-fallback-c1: 255, 45, 120;
   --hero-fallback-c2: 168, 85, 247;
 
-  /* One solid accent per theme. The gradient / glow tokens are kept as names
-     so every component still resolves, but they now derive from the accent
-     (or are neutral) instead of painting multi-colour gradients. */
+  /* Gradient and glow tokens all resolve to the theme's single accent. */
   --accent-gradient: var(--button-accent);
   --accent-gradient-soft: rgba(255, 255, 255, 0.05);
   --soundbar-gradient: var(--button-accent);
@@ -2546,7 +2544,6 @@ body.file-dragging .playlist-list .nav-item.drag-over {
   white-space: nowrap;
 }
 
-/* Professional polish pass */
 :root {
   --bg-base: #07080a;
   --bg-shell: #0b0d10;
