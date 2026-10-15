@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('ytdlp-status', (event, status) => callback(status));
   },
 
+  // App updates
+  getAppUpdateStatus: () => ipcRenderer.invoke('get-app-update-status'),
+  checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
+  installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
+  onAppUpdateStatus: (callback) => {
+    ipcRenderer.on('app-update-status', (event, status) => callback(status));
+  },
+
   // Downloads
   downloadVideo: (url) => ipcRenderer.invoke('download-video', url),
   downloadPlaylistUrl: (url) => ipcRenderer.invoke('download-playlist-url', url),

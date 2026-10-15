@@ -154,6 +154,9 @@
     ytdlpVersion: $('#ytdlp-version'),
     ytdlpStatus: $('#ytdlp-status'),
     btnYtdlpUpdate: $('#btn-ytdlp-update'),
+    appVersion: $('#app-version'),
+    appUpdateStatus: $('#app-update-status'),
+    btnAppUpdate: $('#btn-app-update'),
     settingThemeInputs: $$('input[name="setting-theme"]'),
     settingMiniStyleInputs: $$('input[name="setting-mini-style"]'),
     settingMiniSizeInputs: $$('input[name="setting-mini-size"]'),
@@ -358,11 +361,25 @@
 
     toast.append(media, content);
 
-    dom.toastContainer.appendChild(toast);
-    setTimeout(() => {
+    const dismiss = () => {
       toast.classList.add('fade-out');
       setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    };
+
+    if (data.action) {
+      const btn = document.createElement('button');
+      btn.className = 'toast-action';
+      btn.textContent = data.action.label;
+      btn.addEventListener('click', () => {
+        dismiss();
+        data.action.onClick();
+      });
+      toast.classList.add('has-action');
+      toast.appendChild(btn);
+    }
+
+    dom.toastContainer.appendChild(toast);
+    setTimeout(dismiss, data.duration || 3000);
   }
 
   function showPlaylistAddToast(song, playlist) {
@@ -2828,6 +2845,46 @@
     dom.settingsOverlay.classList.add('visible');
     renderMiniStylePreviews();
     renderYtdlpStatus(await window.api.getYtdlpStatus());
+    renderAppUpdateStatus(await window.api.getAppUpdateStatus());
+  }
+
+  function renderAppUpdateStatus(status) {
+    dom.appVersion.textContent = status.currentVersion;
+    dom.btnAppUpdate.dataset.state = status.state;
+    dom.btnAppUpdate.hidden = status.state === 'unsupported';
+    dom.btnAppUpdate.disabled = status.state === 'checking' || status.state === 'downloading';
+    dom.btnAppUpdate.textContent = status.state === 'ready' ? 'Restart to update'
+      : status.state === 'checking' ? 'Checking…'
+      : status.state === 'downloading' ? 'Downloading…'
+      : 'Check for updates';
+    dom.appUpdateStatus.classList.toggle('error', status.state === 'error');
+
+    let text;
+    if (status.state === 'unsupported') text = 'Updates are only available in the installed version.';
+    else if (status.state === 'checking') text = 'Checking for updates…';
+    else if (status.state === 'downloading') text = `Downloading version ${status.version}… ${status.percent || 0}%`;
+    else if (status.state === 'ready') text = `Version ${status.version} is ready. It installs when you restart PlayGen.`;
+    else if (status.state === 'error') text = status.error;
+    else if (status.lastCheck) text = `You're up to date. Last checked ${formatLastCheck(status.lastCheck)}.`;
+    else text = 'Updates automatically.';
+    dom.appUpdateStatus.textContent = text;
+  }
+
+  let _lastAppUpdateState = null;
+
+  function onAppUpdateStatus(status) {
+    renderAppUpdateStatus(status);
+    if (status.state === 'ready' && _lastAppUpdateState !== 'ready') {
+      showToast({
+        icon: 'download',
+        eyebrow: 'Update ready',
+        title: `PlayGen ${status.version}`,
+        detail: 'Restart to finish updating.',
+        action: { label: 'Restart', onClick: () => window.api.installAppUpdate() },
+        duration: 15000
+      });
+    }
+    _lastAppUpdateState = status.state;
   }
 
   function renderYtdlpStatus(status) {
@@ -3027,6 +3084,13 @@
       renderYtdlpStatus(await window.api.updateYtdlp());
     });
     window.api.onYtdlpStatus(renderYtdlpStatus);
+    dom.btnAppUpdate.addEventListener('click', async () => {
+      if (dom.btnAppUpdate.dataset.state === 'ready') window.api.installAppUpdate();
+      else renderAppUpdateStatus(await window.api.checkAppUpdate());
+    });
+    window.api.onAppUpdateStatus(onAppUpdateStatus);
+    // An update may have finished before this page was listening.
+    window.api.getAppUpdateStatus().then(onAppUpdateStatus);
     dom.settingStartupAnimation.addEventListener('change', () => {
       const enabled = dom.settingStartupAnimation.checked;
       window.api.saveSettings({ startupAnimation: enabled });

@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { spawn, spawnSync } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 // ── Paths ──────────────────────────────────────────────────────────
 const userDataPath = app.getPath('userData');
@@ -290,6 +291,71 @@ async function waitForYtdlpUpdate() {
   if (ytdlpUpdate) await ytdlpUpdate;
 }
 
+// ── App Updates ───────────────────────────────────────────────────
+// Only installer builds ship app-update.yml, so only they can update.
+const APP_UPDATE_INTERVAL = 4 * 60 * 60 * 1000;
+const canUpdateApp = app.isPackaged && fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+
+let appUpdate = { state: canUpdateApp ? 'idle' : 'unsupported' };
+
+function getAppUpdateStatus() {
+  return { currentVersion: app.getVersion(), lastCheck: db.appUpdateLastCheck || null, ...appUpdate };
+}
+
+function setAppUpdate(updates) {
+  appUpdate = { ...appUpdate, ...updates };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app-update-status', getAppUpdateStatus());
+  }
+}
+
+const updaterLogPath = path.join(userDataPath, 'updater.log');
+
+function logUpdater(level, message) {
+  try {
+    if (fs.existsSync(updaterLogPath) && fs.statSync(updaterLogPath).size > 512 * 1024) fs.unlinkSync(updaterLogPath);
+    fs.appendFileSync(updaterLogPath, `${new Date().toISOString()} [${level}] ${message}\n`);
+  } catch { /* ignore */ }
+}
+
+function setupAppUpdater() {
+  if (!canUpdateApp) return;
+  autoUpdater.logger = {
+    info: m => logUpdater('info', m),
+    warn: m => logUpdater('warn', m),
+    error: m => logUpdater('error', m),
+    debug: m => logUpdater('debug', m)
+  };
+  logUpdater('info', `PlayGen ${app.getVersion()} started`);
+
+  autoUpdater.on('checking-for-update', () => setAppUpdate({ state: 'checking', error: null }));
+  autoUpdater.on('update-not-available', () => {
+    db.appUpdateLastCheck = Date.now();
+    saveDB(db);
+    setAppUpdate({ state: 'latest' });
+  });
+  autoUpdater.on('update-available', info => setAppUpdate({ state: 'downloading', version: info.version, percent: 0 }));
+  autoUpdater.on('download-progress', p => setAppUpdate({ state: 'downloading', percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', info => {
+    db.appUpdateLastCheck = Date.now();
+    saveDB(db);
+    setAppUpdate({ state: 'ready', version: info.version });
+  });
+  autoUpdater.on('error', err => {
+    logUpdater('error', err.stack || err.message);
+    // A finished download stays installable even if a later check fails.
+    if (appUpdate.state !== 'ready') setAppUpdate({ state: 'error', error: 'Could not check for updates' });
+  });
+
+  checkForAppUpdate();
+  setInterval(checkForAppUpdate, APP_UPDATE_INTERVAL);
+}
+
+function checkForAppUpdate() {
+  if (!canUpdateApp || ['checking', 'downloading', 'ready'].includes(appUpdate.state)) return;
+  autoUpdater.checkForUpdates().catch(() => { /* reported by the 'error' event */ });
+}
+
 // ── Window ─────────────────────────────────────────────────────────
 let mainWindow;
 let miniPlayerWindow = null;
@@ -455,6 +521,7 @@ app.whenReady().then(() => {
   createWindow();
   startDownloadsWatcher();
   updateYtdlp();
+  setupAppUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -479,6 +546,16 @@ ipcMain.handle('check-dependencies', async () => depsStatus);
 // ── IPC: yt-dlp Updates ──────────────────────────────────────────
 ipcMain.handle('get-ytdlp-status', () => getYtdlpStatus());
 ipcMain.handle('update-ytdlp', () => updateYtdlp({ force: true }));
+
+// ── IPC: App Updates ─────────────────────────────────────────────
+ipcMain.handle('get-app-update-status', () => getAppUpdateStatus());
+ipcMain.handle('check-app-update', () => {
+  checkForAppUpdate();
+  return getAppUpdateStatus();
+});
+ipcMain.handle('install-app-update', () => {
+  if (appUpdate.state === 'ready') autoUpdater.quitAndInstall(true, true);
+});
 
 // ── IPC: Get Paths ────────────────────────────────────────────────
 ipcMain.handle('get-downloads-path', () => downloadsPath);

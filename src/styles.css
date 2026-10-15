@@ -2113,6 +2113,30 @@ body.audio-playing .song-item.playing .playing-bar {
   animation: toast-out var(--t-base) both;
 }
 
+.toast-rich.has-action {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  pointer-events: auto;
+}
+
+.toast-action {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.toast-action:hover {
+  background: var(--accent-tint-hover);
+  color: #fff;
+}
+
 .drag-ghost {
   position: fixed;
   z-index: 5000;
