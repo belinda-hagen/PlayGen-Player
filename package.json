@@ -1,6 +1,6 @@
 {
   "name": "playgen",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "YouTube music downloader & playlist manager",
   "desktopName": "PlayGen",
   "main": "main.js",

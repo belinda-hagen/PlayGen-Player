@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/belinda-hagen/PlayGen-Player/releases/latest"><img src="https://img.shields.io/github/v/tag/belinda-hagen/PlayGen-Player?label=Version&style=flat-square&color=a855f7" alt="Version" /></a>
   <a href="https://github.com/belinda-hagen/PlayGen-Player/releases"><img src="https://img.shields.io/github/downloads/belinda-hagen/PlayGen-Player/total?style=flat-square&color=ff8c00&label=Downloads" alt="Downloads" /></a>
-  <img src="https://img.shields.io/badge/Electron-28-191970?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
+  <img src="https://img.shields.io/badge/Electron-44-191970?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white" alt="Platform" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-ff2d78?style=flat-square" alt="License" /></a>
   <a href="https://github.com/belinda-hagen/PlayGen-Player/stargazers"><img src="https://img.shields.io/github/stars/belinda-hagen/PlayGen-Player?style=flat-square&color=ffcc00&label=Stars" alt="Stars" /></a>
@@ -28,28 +28,33 @@
 
 | Feature | Description |
 |---|---|
+| **Home page** | Start page with a cover card for every playlist |
 | **Download from YouTube** | Paste a video link and get a high-quality MP3 |
 | **Download whole playlists** | Paste a YouTube playlist link to grab every track at once |
 | **Playlist system** | Create, rename, reorder (drag-and-drop) & delete playlists |
+| **Playlist covers** | Upload your own cover image or use a song's artwork |
 | **Next-song delay** | Set a per-playlist gap between tracks (Instant → 30 seconds) |
 | **Export to folder** | Copy a whole playlist's MP3s to any folder on your PC |
 | **Full music player** | Play/pause, skip, shuffle, repeat, seek & volume |
 | **Adaptive cover art** | The now-playing banner tints itself to match the album art |
 | **Audio visualizer** | Real-time equalizer bars on the album thumbnail |
-| **Mini player** | Compact always-on-top player when minimized (toggle in settings) |
+| **Mini player** | Always-on-top player when minimized, in four styles and sizes |
 | **Search** | Instantly filter songs across your library |
+| **Automatic updates** | The app and its bundled yt-dlp keep themselves up to date |
 
 > **Tip:** Right-click a playlist to **rename** it, set its **next-song delay**, or **export** all its tracks to a folder. Inside a playlist a song is only *removed* from that playlist — permanent deletion lives in the **Downloads** view.
 
-## Prerequisites
+## Install
+
+Download `PlayGen-<version>-win-x64.exe` from the [latest release](https://github.com/belinda-hagen/PlayGen-Player/releases/latest) and run it. Installed copies update themselves: new versions download in the background and install on the next restart.
+
+## Run from Source
 
 | Tool | Install |
 |------|---------|
 | **Node.js** 18+ | [nodejs.org](https://nodejs.org) |
-| **yt-dlp** | `winget install yt-dlp` or [GitHub releases](https://github.com/yt-dlp/yt-dlp/releases) |
-| **ffmpeg** | `winget install ffmpeg` or [ffmpeg.org](https://ffmpeg.org/download.html) |
-
-## Quick Start
+| **yt-dlp** | Bundled on Windows. Elsewhere: [GitHub releases](https://github.com/yt-dlp/yt-dlp/releases) |
+| **ffmpeg** | Bundled on Windows. Elsewhere: [ffmpeg.org](https://ffmpeg.org/download.html) |
 
 ```bash
 git clone https://github.com/belinda-hagen/PlayGen-Player.git

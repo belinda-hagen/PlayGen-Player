@@ -453,8 +453,7 @@ button:focus-visible,
 
 .download-progress-fill,
 .progress-fill,
-.volume-fill,
-.mini-progress-fill {
+.volume-fill {
   width: 0;
   height: 100%;
   background: var(--accent-gradient);
@@ -2137,22 +2136,6 @@ body.audio-playing .song-item.playing .playing-bar {
   color: #fff;
 }
 
-.drag-ghost {
-  position: fixed;
-  z-index: 5000;
-  max-width: 260px;
-  padding: 10px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: #282828;
-  color: var(--text-main);
-  box-shadow: var(--shadow-lg);
-  pointer-events: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .view-transition .home-view,
 .view-transition .view-hero,
 .view-transition .song-list-header,
@@ -3164,7 +3147,6 @@ body {
 
 .context-menu,
 .context-menu-submenu-items,
-.drag-ghost,
 .multi-drag-chip {
   border-color: rgba(255, 255, 255, 0.12);
   background: #24282f;
