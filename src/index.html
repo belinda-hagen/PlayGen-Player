@@ -29,7 +29,7 @@
       if (localStorage.getItem('startupAnimation') !== 'false') {
         document.getElementById('loading-screen').classList.add('intro');
       }
-    } catch { /* storage unavailable: fall back to the plain spinner */ }
+    } catch {}
   </script>
 
   <div class="scanlines"></div>
@@ -404,9 +404,7 @@
               <span>Extra large</span>
             </label>
           </div>
-          <div class="mini-size-preview" id="mini-size-preview">
-            <span class="mini-size-dims" id="mini-size-dims"></span>
-          </div>
+          <p class="settings-hint" id="mini-size-hint"></p>
         </div>
         <div class="settings-group">
           <h4 class="settings-group-title">Startup</h4>

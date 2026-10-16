@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════
-// PlayGen — Renderer (App Logic, Player, Visualizer)
-// ═══════════════════════════════════════════════════════════════════
-
 (() => {
   'use strict';
 
@@ -9,24 +5,24 @@
   const state = {
     songs: [],
     playlists: [],
-    currentView: 'home',        // 'home', 'all' or playlist id
-    playingFromView: null,       // view where current song playback started
-    currentSong: null,           // song object
-    currentQueue: [],            // array of song objects (current play queue)
+    currentView: 'home',
+    playingFromView: null,
+    currentSong: null,
+    currentQueue: [],
     currentQueueIndex: -1,
     isPlaying: false,
     shuffle: false,
-    repeat: 'none',              // 'none', 'all', 'one'
+    repeat: 'none',
     volume: 0.8,
     searchQuery: '',
     isDownloading: false,
     cancelDownload: false,
     theme: 'rose',
-    miniPlayerStyle: 'classic',  // 'classic', 'compact', 'cover', 'glass'
+    miniPlayerStyle: 'classic',
     dragSongId: null,
-    dragSongIds: null,            // all song ids being dragged (multi-select)
-    selectedSongIds: new Set(),   // multi-selected songs in the current view
-    lastSelectedSongId: null      // anchor for shift-range selection
+    dragSongIds: null,
+    selectedSongIds: new Set(),
+    lastSelectedSongId: null
   };
 
   const NEXT_DELAY_OPTIONS = [
@@ -43,7 +39,7 @@
 
   // ── Play transition guards ──────────────────────────────────────
   let _playId = 0;
-  let _currentPlayId = 0;  // The playId that event handlers should respond to
+  let _currentPlayId = 0;
   let _isTransitioning = false;
   let nextSongTimer = null;
 
@@ -60,30 +56,25 @@
   const $$ = (sel) => document.querySelectorAll(sel);
 
   const dom = {
-    // Titlebar
     btnMinimize: $('#btn-minimize'),
     btnMaximize: $('#btn-maximize'),
     btnClose: $('#btn-close'),
 
-    // Top bar
     urlInput: $('#url-input'),
     btnDownload: $('#btn-download'),
     searchInput: $('#search-input'),
 
-    // Download progress
     downloadProgressContainer: $('#download-progress-container'),
     downloadProgressTitle: $('#download-progress-title'),
     downloadProgressPercent: $('#download-progress-percent'),
     downloadProgressFill: $('#download-progress-fill'),
 
-    // Sidebar
     navHome: $('#nav-home'),
     navAll: $('#nav-all'),
     playlistList: $('#playlist-list'),
     btnNewPlaylist: $('#btn-new-playlist'),
     btnOpenFolder: $('#btn-open-folder'),
 
-    // Main area
     homeView: $('#home-view'),
     homeTitle: $('#home-title'),
     homeSubtitle: $('#home-subtitle'),
@@ -97,7 +88,6 @@
     depsWarning: $('#deps-warning'),
     depsWarningText: $('#deps-warning-text'),
 
-    // Player
     playerThumbnail: $('#player-thumbnail'),
     playerThumbImg: $('#player-thumb-img'),
     playerTitle: $('#player-title'),
@@ -121,11 +111,9 @@
     volumeFill: $('#volume-fill'),
     volumeThumb: $('#volume-thumb'),
 
-    // Context menu
     contextMenu: $('#context-menu'),
     contextMenuItems: $('#context-menu-items'),
 
-    // Modal
     modalOverlay: $('#modal-overlay'),
     modalMedia: $('#modal-media'),
     modalEyebrow: $('#modal-eyebrow'),
@@ -135,17 +123,14 @@
     modalCancel: $('#modal-cancel'),
     modalConfirm: $('#modal-confirm'),
 
-    // Edit track modal
     editTrackOverlay: $('#edit-track-overlay'),
     editTitleInput: $('#edit-title-input'),
     editArtistInput: $('#edit-artist-input'),
     editCancel: $('#edit-cancel'),
     editConfirm: $('#edit-confirm'),
 
-    // Toast
     toastContainer: $('#toast-container'),
 
-    // Settings
     btnSettings: $('#btn-settings'),
     settingsOverlay: $('#settings-overlay'),
     settingsClose: $('#settings-close'),
@@ -161,18 +146,14 @@
     settingMiniStyleInputs: $$('input[name="setting-mini-style"]'),
     settingMiniSizeInputs: $$('input[name="setting-mini-size"]'),
     miniStylePreviews: $$('.mini-style-preview'),
-    miniSizePreview: $('#mini-size-preview'),
-    miniSizeDims: $('#mini-size-dims'),
+    miniSizeHint: $('#mini-size-hint'),
 
-    // Sidebar
     sidebar: $('#sidebar'),
     btnToggleSidebar: $('#btn-toggle-sidebar'),
 
-    // Loading screen
     loadingScreen: $('#loading-screen')
   };
 
-  // Fallback cover for songs without artwork (e.g. imported local files).
   const THUMB_PLACEHOLDER = `
     <div class="song-thumb-placeholder">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
@@ -200,8 +181,7 @@
   function applyTheme(theme) {
     state.theme = normalizeTheme(theme);
     document.documentElement.dataset.theme = state.theme;
-    // Mirrored so the startup intro can use the theme before settings load.
-    try { localStorage.setItem('theme', state.theme); } catch { /* ignore */ }
+    try { localStorage.setItem('theme', state.theme); } catch {}
   }
 
   function getThemeValue(name, fallback) {
@@ -437,12 +417,10 @@
         dom.modalEyebrow.style.display = 'none';
       }
 
-      // Choice mode (two action buttons, no input) vs input mode
       if (altText) {
         dom.modalInput.style.display = 'none';
         dom.modalConfirm.textContent = confirmText;
 
-        // In choice mode the descriptive text is shown as the message body
         if (placeholder) {
           dom.modalMessage.textContent = placeholder;
           dom.modalMessage.style.display = '';
@@ -463,7 +441,6 @@
           dom.modalInput.style.display = '';
           hideModal('single');
         };
-        // Override confirm for choice mode
         dom.modalConfirm.onclick = () => {
           altBtn.style.display = 'none';
           dom.modalInput.style.display = '';
@@ -479,7 +456,6 @@
         const altBtn = dom.modalOverlay.querySelector('.modal-btn-alt');
         if (altBtn) altBtn.style.display = 'none';
 
-        // Reset confirm handler
         dom.modalConfirm.onclick = () => hideModal(dom.modalInput.value.trim());
       }
 
@@ -527,7 +503,7 @@
   function commitEditTrack() {
     const title = dom.editTitleInput.value.trim();
     const artist = dom.editArtistInput.value.trim();
-    if (!title) { dom.editTitleInput.focus(); return; } // title is required
+    if (!title) { dom.editTitleInput.focus(); return; }
     closeEditTrackModal({ title, artist });
   }
 
@@ -587,7 +563,6 @@
     dom.contextMenu.style.top = y + 'px';
     dom.contextMenu.classList.add('visible');
 
-    // Adjust if off-screen
     requestAnimationFrame(() => {
       const rect = dom.contextMenu.getBoundingClientRect();
       if (rect.right > window.innerWidth) {
@@ -596,7 +571,6 @@
       if (rect.bottom > window.innerHeight) {
         dom.contextMenu.style.top = (y - rect.height) + 'px';
       }
-      // Open submenus to the left when there's no room on the right.
       const finalRect = dom.contextMenu.getBoundingClientRect();
       dom.contextMenu.classList.toggle('flip-submenu', finalRect.right + 260 > window.innerWidth);
     });
@@ -646,8 +620,6 @@
     updateShuffleUI();
     updateRepeatUI();
 
-    // Restore session. The app always opens on Home; the last playlist only
-    // decides which queue the restored song continues in.
     if (session?.lastSongId) {
       const song = state.songs.find(s => s.id === session.lastSongId);
       if (song) {
@@ -659,7 +631,7 @@
         const filePath = await window.api.getSongPath(song.id);
         if (filePath) {
           audio.src = `file://${filePath}`;
-          audio.pause(); // Loaded but not playing
+          audio.pause();
         }
         updatePlayerSongInfo();
       }
@@ -674,7 +646,6 @@
 
     setupEventListeners();
 
-    // Keep the local mirror (read before first paint) in sync with the DB.
     setStartupAnimationFlag(settings.startupAnimation !== false);
 
     hideLoadingScreen();
@@ -687,7 +658,7 @@
   const introStartedAt = performance.now();
 
   function setStartupAnimationFlag(enabled) {
-    try { localStorage.setItem('startupAnimation', String(enabled)); } catch { /* ignore */ }
+    try { localStorage.setItem('startupAnimation', String(enabled)); } catch {}
   }
 
   function hideLoadingScreen() {
@@ -714,7 +685,6 @@
       item.dataset.view = pl.id;
       item.draggable = false;
 
-      // Drop zone for songs
       item.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
@@ -725,8 +695,6 @@
         e.preventDefault();
         item.classList.remove('drag-over');
 
-        // The window handler still runs to reset the drag state, but must not
-        // import the files a second time.
         if (isFileDrag(e)) {
           _fileDropHandled = true;
           await importLocalFiles(getDroppedFilePaths(e.dataTransfer), pl.id);
@@ -784,8 +752,6 @@
       dom.playlistList.appendChild(item);
     });
 
-    // Home mirrors the playlist list, so keep its cards in sync with any
-    // create / rename / add-song change that re-renders the sidebar.
     if (state.currentView === 'home') renderHome();
   }
 
@@ -829,8 +795,6 @@
   }
 
   // ── Hero Cover Color ────────────────────────────────────────────
-  // Hero banner colours come from the cover art, with the brand colours as a
-  // fallback when the image can't be read.
   const heroPaletteCache = new Map();
   let _heroColorUrl = null;
   let _heroColorToken = 0;
@@ -854,7 +818,7 @@
     canvas.height = size;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(img, 0, 0, size, size);
-    const { data } = ctx.getImageData(0, 0, size, size); // throws if the canvas is tainted
+    const { data } = ctx.getImageData(0, 0, size, size);
 
     const buckets = new Map();
     for (let i = 0; i < data.length; i += 4) {
@@ -867,7 +831,6 @@
       let bk = buckets.get(key);
       if (!bk) { bk = { r: 0, g: 0, b: 0, n: 0, score: 0 }; buckets.set(key, bk); }
       bk.r += r; bk.g += g; bk.b += b; bk.n++;
-      // Favour saturated, mid-bright colours; downweight near-black/white
       const lumWeight = 1 - Math.min(1, Math.abs(lum - 0.5) * 1.6);
       bk.score += (0.1 + sat) * Math.max(0.08, lumWeight);
     }
@@ -899,7 +862,7 @@
   function applyHeroColor(url) {
     const hero = document.getElementById('view-hero');
     if (!hero) return;
-    if (url === _heroColorUrl) return; // already applied / in-flight for this cover
+    if (url === _heroColorUrl) return;
     _heroColorUrl = url || null;
     const token = ++_heroColorToken;
 
@@ -1155,7 +1118,6 @@
     dom.viewTitle.textContent = viewTitle;
     dom.songCount.textContent = `${songs.length} song${songs.length !== 1 ? 's' : ''}`;
 
-    // Update hero banner
     const heroBg = document.getElementById('view-hero-bg');
     const heroThumb = document.getElementById('view-hero-thumb');
     const heroLabel = document.getElementById('view-hero-label');
@@ -1164,8 +1126,6 @@
       heroLabel.textContent = isPlaylistView ? 'Playlist' : 'Library';
     }
 
-    // A cover the user picked for the playlist wins; otherwise use the
-    // currently playing song if it's in this view, otherwise the first song.
     const chosenCover = currentPlaylist ? getChosenPlaylistCover(currentPlaylist) : null;
     const playingSongInView = state.currentSong && songs.find(s => s.id === state.currentSong.id);
     const heroSong = playingSongInView || (songs.length > 0 ? songs[0] : null);
@@ -1182,7 +1142,6 @@
       heroThumb.title = isPlaylistView ? 'Change cover' : '';
     }
 
-    // Header actions
     dom.viewHeaderRight.innerHTML = '';
     if (songs.length > 0) {
       const btn = document.createElement('button');
@@ -1225,7 +1184,6 @@
       dom.viewHeaderRight.appendChild(delayBtn);
     }
 
-    // Show/hide empty state & column header
     const colHeader = document.getElementById('song-list-header');
     dom.songList.innerHTML = '';
     if (songs.length === 0 && !state.searchQuery) {
@@ -1294,26 +1252,23 @@
       try {
         const arr = JSON.parse(multi);
         if (Array.isArray(arr) && arr.length) return arr;
-      } catch { /* fall through */ }
+      } catch {}
     }
     const single = dataTransfer.getData('text/song-id');
     return single ? [single] : [];
   }
 
-  // A small "N songs" chip used as the drag image for a multi-song drag.
   function makeMultiDragImage(count) {
     const chip = document.createElement('div');
     chip.className = 'multi-drag-chip';
     chip.textContent = `${count} songs`;
     document.body.appendChild(chip);
-    // Remove on the next tick — the browser snapshots it synchronously.
     setTimeout(() => chip.remove(), 0);
     return chip;
   }
 
   function createSongItem(song, index, isPlaylistView) {
     const item = document.createElement('div');
-    // Only show 'playing' class if this is the view where playback started
     const isPlayingHere = state.currentSong?.id === song.id && state.playingFromView === state.currentView;
     item.className = `song-item ${isPlayingHere ? 'playing' : ''} ${state.selectedSongIds.has(song.id) ? 'selected' : ''}`;
     item.dataset.songId = song.id;
@@ -1364,7 +1319,6 @@
       </div>
     `;
 
-    // Click to play, or Ctrl/Shift+click to build a multi-selection for dragging
     item.addEventListener('click', (e) => {
       if (e.target.closest('.song-action-btn')) return;
       if (e.ctrlKey || e.metaKey) {
@@ -1379,13 +1333,11 @@
       playSong(song);
     });
 
-    // Context menu
     item.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       showSongContextMenu(e.clientX, e.clientY, song, isPlaylistView);
     });
 
-    // Add to playlist button
     const addBtn = item.querySelector('.add-to-playlist');
     addBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1393,12 +1345,10 @@
       showAddToPlaylistMenu(rect.left, rect.bottom, song.id);
     });
 
-    // Remove from playlist button
     const removeBtn = item.querySelector('.remove-from-playlist');
     removeBtn?.addEventListener('click', async (e) => {
       e.stopPropagation();
       const fromView = state.currentView;
-      // Stop playback if we're removing the song that's currently playing from this playlist.
       const wasPlayingHere = state.currentSong?.id === song.id && state.playingFromView === fromView;
       await window.api.removeFromPlaylist(fromView, song.id);
       if (wasPlayingHere) stopCurrentPlayback();
@@ -1408,17 +1358,13 @@
       showPlaylistRemoveToast(song, state.playlists.find(p => p.id === fromView));
     });
 
-    // Delete button
     const deleteBtn = item.querySelector('.delete');
     deleteBtn?.addEventListener('click', async (e) => {
       e.stopPropagation();
       await deleteSong(song);
     });
 
-    // Drag start
     item.addEventListener('dragstart', (e) => {
-      // Dragging a song that's part of a multi-selection drags the whole set
-      // (in display order). Dragging an unselected song drags just that one.
       let ids;
       if (state.selectedSongIds.has(song.id) && state.selectedSongIds.size > 1) {
         ids = getDisplayedSongIds().filter(id => state.selectedSongIds.has(id));
@@ -1451,7 +1397,6 @@
       });
     });
 
-    // Drag over (for reordering within playlist)
     if (isPlaylistView) {
       item.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -1482,7 +1427,6 @@
             const midY = rect.top + rect.height / 2;
             const insertBefore = e.clientY < midY;
 
-            // Pull the dragged songs out, then re-insert the block at the target.
             let songIds = pl.songs.filter(id => !draggedIds.includes(id));
             const targetIdx = songIds.indexOf(targetId);
             if (targetIdx !== -1) {
@@ -1510,7 +1454,6 @@
       { divider: true }
     ];
 
-    // Add to playlist submenu
     if (state.playlists.length > 0) {
       items.push({
         label: '+ Add to Playlist',
@@ -1532,7 +1475,6 @@
         label: '− Remove from Playlist',
         action: async () => {
           const fromView = state.currentView;
-          // Stop playback if we're removing the song that's currently playing from this playlist.
           const wasPlayingHere = state.currentSong?.id === song.id && state.playingFromView === fromView;
           await window.api.removeFromPlaylist(fromView, song.id);
           if (wasPlayingHere) stopCurrentPlayback();
@@ -1543,8 +1485,6 @@
         }
       });
     } else {
-      // Permanent delete is only available in the Downloads (All) view —
-      // inside a playlist a song can only be removed from that playlist.
       items.push({ divider: true });
       items.push({
         label: 'Delete Song',
@@ -1591,8 +1531,6 @@
   // ── View Switching ──────────────────────────────────────────────
   function switchView(viewId) {
     state.currentView = viewId;
-    // A search belongs to the view it was typed in; carrying it over would
-    // leave Home filtered, or filter a playlist's songs by its own name.
     clearTimeout(searchTimeout);
     state.searchQuery = '';
     dom.searchInput.value = '';
@@ -1600,10 +1538,9 @@
     state.lastSelectedSongId = null;
     highlightActiveNav();
 
-    // Trigger view transition animation
     const mainArea = document.getElementById('main-area');
     mainArea.classList.remove('view-transition');
-    void mainArea.offsetWidth; // force reflow to restart animation
+    void mainArea.offsetWidth;
     mainArea.classList.add('view-transition');
 
     renderSongList();
@@ -1631,7 +1568,6 @@
 
     if (state.isDownloading) return;
 
-    // If it's a playlist URL, ask the user what they want to do
     if (isPlaylistUrl(url)) {
       const choice = await showModal(
         'Download the whole playlist?',
@@ -1644,17 +1580,13 @@
       if (choice === 'playlist') {
         await downloadPlaylist(url);
         return;
-      } else if (choice === 'single') {
-        // Continue with single video download below
-      } else {
-        return; // Cancelled
       }
+      if (choice !== 'single') return;
     }
 
     state.isDownloading = true;
     dom.btnDownload.classList.add('downloading');
 
-    // Show progress
     dom.downloadProgressContainer.classList.add('active');
     dom.downloadProgressTitle.textContent = 'Starting download...';
     dom.downloadProgressPercent.textContent = '0%';
@@ -1705,7 +1637,6 @@
     dom.downloadProgressPercent.textContent = '';
     dom.downloadProgressFill.style.width = '0%';
 
-    // Show cancel button
     let cancelBtn = dom.downloadProgressContainer.querySelector('.btn-cancel-download');
     if (!cancelBtn) {
       cancelBtn = document.createElement('button');
@@ -1781,19 +1712,16 @@
           console.error(`Error downloading ${videoUrl}:`, err);
         }
 
-        // Refresh song list periodically
         if (downloaded % 3 === 0 || current === videoUrls.length) {
           state.songs = await window.api.getSongs();
           renderSongList();
         }
 
-        // Small delay between downloads to avoid rate limiting
         if (i < videoUrls.length - 1 && !state.cancelDownload) {
           await new Promise(r => setTimeout(r, 500));
         }
       }
 
-      // Final refresh
       state.songs = await window.api.getSongs();
       renderSongList();
 
@@ -1835,7 +1763,6 @@
   let _fileDropHandled = false;
 
   function isFileDrag(e) {
-    // OS file drags expose a 'Files' type; internal song drags carry 'text/song-id'.
     return Array.from(e.dataTransfer?.types || []).includes('Files');
   }
 
@@ -1843,14 +1770,11 @@
     const paths = [];
     const files = dataTransfer?.files || [];
     for (let i = 0; i < files.length; i++) {
-      // Electron exposes the absolute path on dropped File objects.
       if (files[i].path) paths.push(files[i].path);
     }
     return paths;
   }
 
-  // Import dropped files into the library. When playlistId is given, the
-  // imported songs are also added to that playlist.
   async function importLocalFiles(paths, playlistId = null) {
     if (!paths || paths.length === 0) return;
 
@@ -1876,7 +1800,6 @@
           state.playlists = await window.api.getPlaylists();
           const targetPlaylist = state.playlists.find(p => p.id === playlistId);
           renderSidebar();
-          // Reveal the playlist so the additions are visible.
           if (state.currentView === playlistId) {
             renderSongList();
           } else {
@@ -1892,7 +1815,6 @@
             thumbnail: imported.length === 1 ? (imported[0].thumbnail || undefined) : undefined
           });
         } else {
-          // Surface the new tracks in the library so the import is visible.
           if (state.currentView !== 'all') {
             switchView('all');
           } else {
@@ -1960,8 +1882,6 @@
     let dragDepth = 0;
 
     function setDragActive(active) {
-      // 'file-dragging' lifts the sidebar above the overlay so playlists
-      // stay visible and usable as drop targets.
       document.body.classList.toggle('file-dragging', active);
       overlay?.classList.toggle('visible', active);
     }
@@ -1985,14 +1905,11 @@
       if (dragDepth === 0) setDragActive(false);
     });
 
-    // Fallback: a file dropped anywhere except a playlist lands in the library.
-    // Playlist drop targets handle their own drop and stop propagation.
     window.addEventListener('drop', (e) => {
       if (!isFileDrag(e)) return;
       e.preventDefault();
       dragDepth = 0;
       setDragActive(false);
-      // A playlist target already imported these files — just reset and bail.
       if (_fileDropHandled) {
         _fileDropHandled = false;
         return;
@@ -2088,7 +2005,6 @@
     await window.api.updateSong(song.id, { title: result.title, channel: result.artist });
     state.songs = await window.api.getSongs();
 
-    // Keep the now-playing bar (and mini player) in sync if this is the active track
     if (state.currentSong?.id === song.id) {
       state.currentSong.title = result.title;
       state.currentSong.channel = result.artist;
@@ -2105,7 +2021,6 @@
       thumbnail: song.thumbnail
     });
 
-    // Quietly look up album art for tracks that have none.
     const updated = state.songs.find(s => s.id === song.id);
     if (updated && !updated.thumbnail) {
       fetchCoverArt(updated, { announce: false });
@@ -2202,7 +2117,6 @@
     return 0;
   }
 
-  // Fully stop playback and clear the now-playing state/UI.
   function stopCurrentPlayback() {
     clearNextSongTimer();
     audio.pause();
@@ -2218,9 +2132,6 @@
     updatePlayerSongInfo();
   }
 
-  // Clear the now-playing track from the player bar entirely: stop playback,
-  // reset the transport, drop the "Playing" marker in the list, and forget it
-  // so it isn't restored on next launch.
   function clearCurrentTrack() {
     stopCurrentPlayback();
     audio.removeAttribute('src');
@@ -2233,12 +2144,9 @@
     saveSession();
   }
 
-  // Reload songs/playlists from disk and re-render. Used when the downloads
-  // folder changes outside the app (e.g. a file deleted manually).
   async function refreshLibrary() {
     state.songs = await window.api.getSongs();
     state.playlists = await window.api.getPlaylists();
-    // If the track sitting in the player no longer exists, clear it.
     if (state.currentSong && !state.songs.some(s => s.id === state.currentSong.id)) {
       clearCurrentTrack();
     }
@@ -2270,7 +2178,6 @@
     updatePlayerSongInfo();
     renderSongList();
 
-    // Don't wait for the audio 'play' event.
     dom.playerThumbnail.classList.remove('paused');
     dom.btnPlay.classList.add('is-playing');
     document.body.classList.add('audio-playing');
@@ -2327,7 +2234,6 @@
     }
 
     if (state.shuffle) {
-      // Shuffle but keep current song at current position
       const currentId = state.currentSong?.id;
       state.currentQueue = shuffleArray(state.currentQueue);
       if (currentId) {
@@ -2437,7 +2343,6 @@
       return;
     }
 
-    // If no song loaded, start playing from the current view
     if (!state.currentSong) {
       if (state.currentView === 'home') {
         playAllSongs({ navigate: false });
@@ -2455,8 +2360,6 @@
       dom.btnPlay.classList.remove('is-playing');
       document.body.classList.remove('audio-playing');
     } else {
-      // Resuming inside a different view that contains this song adopts
-      // that view as the source — rebuild the queue so next/prev follow it.
       if (currentViewHasSong(state.currentSong) && state.playingFromView !== state.currentView) {
         state.playingFromView = state.currentView;
         buildQueue(state.currentView);
@@ -2484,7 +2387,6 @@
 
     let nextIndex = state.currentQueueIndex + 1;
     if (nextIndex >= state.currentQueue.length) {
-      // Wrap around to the first song
       nextIndex = 0;
     }
 
@@ -2496,7 +2398,6 @@
     clearNextSongTimer();
     if (state.currentQueue.length === 0) return;
 
-    // If more than 3 seconds into song, restart it
     if (audio.currentTime > 3) {
       audio.currentTime = 0;
       return;
@@ -2538,7 +2439,6 @@
 
   // ── Player UI Updates ───────────────────────────────────────────
   function updatePlayerUI() {
-    // Play/Pause icon
     if (state.isPlaying) {
       dom.playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
     } else {
@@ -2604,7 +2504,6 @@
     dom.volumeFill.style.width = pct + '%';
     dom.volumeThumb.style.left = pct + '%';
 
-    // Volume icon
     if (state.volume === 0) {
       dom.volumeIcon.innerHTML = `
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -2713,7 +2612,6 @@
   });
 
   audio.addEventListener('play', () => {
-    // Ignore stale play events from previous song loads
     if (_playId !== _currentPlayId) return;
     _isTransitioning = false;
     state.isPlaying = true;
@@ -2790,7 +2688,6 @@
 
       ctx.clearRect(0, 0, width, height);
 
-      // Draw bars from bottom
       const barCount = 12;
       const barWidth = width / barCount - 1;
       const step = Math.floor(bufferLength / barCount);
@@ -2924,7 +2821,6 @@
   // true window size and scaled down to fit the card.
   function getMiniPreviewData() {
     const data = { type: 'mini-preview', state: getMiniPlayerState() };
-    // Without a song there is nothing to show, so preview with sample text.
     if (!state.currentSong) {
       data.state.title = 'Song title';
       data.state.channel = 'Artist';
@@ -2965,36 +2861,29 @@
       frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
       postPreviewData(frame, data, style);
     });
-    renderMiniSizePreview();
+    renderMiniSizeHint();
   }
 
-  // Shows the chosen style at the chosen size. The view is zoomed out just
-  // enough to fit the largest size, so switching sizes visibly grows or
-  // shrinks the player.
-  function renderMiniSizePreview() {
-    const box = dom.miniSizePreview;
-    const sizeInputs = [...dom.settingMiniSizeInputs];
-    const sizeScale = Number(sizeInputs.find(input => input.checked)?.dataset.scale) || 1;
-    const maxScale = Math.max(...sizeInputs.map(input => Number(input.dataset.scale)));
-    const style = state.miniPlayerStyle;
-    const { width, height } = $(`input[name="setting-mini-style"][value="${style}"]`)
+  function renderMiniSizeHint() {
+    const sizeScale = Number([...dom.settingMiniSizeInputs].find(input => input.checked)?.dataset.scale) || 1;
+    const { width, height } = $(`input[name="setting-mini-style"][value="${state.miniPlayerStyle}"]`)
       .closest('.mini-style-option').querySelector('.mini-style-preview').dataset;
+    dom.miniSizeHint.textContent =
+      `${Math.round(width * sizeScale)} × ${Math.round(height * sizeScale)} px. Changing the style or size shows the mini player on your screen.`;
+  }
 
-    const frame = getPreviewFrame(box, style);
-    frame.width = width;
-    frame.height = height;
-    const fit = Math.min(
-      (box.clientWidth - 24) / (width * maxScale),
-      (box.clientHeight - 24) / (height * maxScale),
-      1
-    );
-    frame.style.transform = `translate(-50%, -50%) scale(${sizeScale * fit})`;
-    postPreviewData(frame, getMiniPreviewData(), style);
-    dom.miniSizeDims.textContent = `${Math.round(width * sizeScale)} × ${Math.round(height * sizeScale)} px`;
+  // Opens the real mini player on screen once the new setting is saved, so it
+  // shows up at its actual size and position.
+  async function saveMiniPlayerSetting(settings) {
+    await window.api.saveSettings(settings);
+    sendMiniPlayerState();
+    renderMiniSizeHint();
+    window.api.previewMiniPlayer(true);
   }
 
   function closeSettings() {
     dom.settingsOverlay.classList.remove('visible');
+    window.api.previewMiniPlayer(false);
   }
 
   // ── Mini Player State ───────────────────────────────────────────
@@ -3040,38 +2929,30 @@
 
   // ── Event Listeners ─────────────────────────────────────────────
   function setupEventListeners() {
-    // Window controls
     dom.btnMinimize.addEventListener('click', () => window.api.minimize());
     dom.btnMaximize.addEventListener('click', () => window.api.maximize());
     dom.btnClose.addEventListener('click', () => window.api.close());
 
-    // Download
     dom.btnDownload.addEventListener('click', downloadVideo);
     dom.urlInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') downloadVideo();
     });
 
-    // Search
     dom.searchInput.addEventListener('input', onSearchInput);
 
-    // Navigation
     dom.navHome.addEventListener('click', () => switchView('home'));
     dom.navAll.addEventListener('click', () => switchView('all'));
     document.getElementById('view-hero-thumb').addEventListener('click', (e) => {
       const pl = state.playlists.find(p => p.id === state.currentView);
       if (!pl) return;
-      // Keep the document-level click handler from closing the menu right away.
       e.stopPropagation();
       showCoverMenu(e.clientX, e.clientY, pl);
     });
 
-    // New playlist
     dom.btnNewPlaylist.addEventListener('click', createPlaylist);
 
-    // Open folder
     dom.btnOpenFolder.addEventListener('click', () => window.api.openDownloadsFolder());
 
-    // Settings
     dom.btnSettings.addEventListener('click', openSettings);
     dom.settingsClose.addEventListener('click', closeSettings);
     dom.settingsOverlay.addEventListener('click', (e) => {
@@ -3089,7 +2970,6 @@
       else renderAppUpdateStatus(await window.api.checkAppUpdate());
     });
     window.api.onAppUpdateStatus(onAppUpdateStatus);
-    // An update may have finished before this page was listening.
     window.api.getAppUpdateStatus().then(onAppUpdateStatus);
     dom.settingStartupAnimation.addEventListener('change', () => {
       const enabled = dom.settingStartupAnimation.checked;
@@ -3109,31 +2989,25 @@
       input.addEventListener('change', () => {
         if (!input.checked) return;
         state.miniPlayerStyle = normalizeMiniPlayerStyle(input.value);
-        window.api.saveSettings({ miniPlayerStyle: state.miniPlayerStyle });
-        sendMiniPlayerState();
-        renderMiniSizePreview();
+        saveMiniPlayerSetting({ miniPlayerStyle: state.miniPlayerStyle });
       });
     });
     dom.settingMiniSizeInputs.forEach(input => {
       input.addEventListener('change', () => {
         if (!input.checked) return;
-        window.api.saveSettings({ miniPlayerSize: input.value });
-        renderMiniSizePreview();
+        saveMiniPlayerSetting({ miniPlayerSize: input.value });
       });
     });
-    // Sidebar toggle
     dom.btnToggleSidebar.addEventListener('click', () => {
       dom.sidebar.classList.toggle('collapsed');
       const isCollapsed = dom.sidebar.classList.contains('collapsed');
       localStorage.setItem('sidebarCollapsed', isCollapsed);
     });
 
-    // Restore sidebar state
     if (localStorage.getItem('sidebarCollapsed') === 'true') {
       dom.sidebar.classList.add('collapsed');
     }
 
-    // Mini player command handling
     window.api.onMiniPlayerCommand((command) => {
       switch (command) {
         case 'toggle-play': togglePlay(); break;
@@ -3142,12 +3016,10 @@
       }
     });
 
-    // When mini player requests current state
     window.api.onRequestPlayerState(() => {
       sendMiniPlayerState();
     });
 
-    // Keyboard shortcuts from main process (Ctrl+Arrow)
     window.api.onShortcutPrev(() => {
       playPrev();
     });
@@ -3155,7 +3027,6 @@
       playNext();
     });
 
-    // Player controls
     dom.btnPlay.addEventListener('click', togglePlay);
     dom.btnNext.addEventListener('click', playNext);
     dom.btnPrev.addEventListener('click', playPrev);
@@ -3163,7 +3034,6 @@
     dom.btnRepeat.addEventListener('click', toggleRepeat);
     dom.btnClearTrack.addEventListener('click', clearCurrentTrack);
 
-    // Volume mute toggle
     let volumeBeforeMute = state.volume;
     dom.btnVolumeIcon.addEventListener('click', () => {
       if (state.volume > 0) {
@@ -3177,31 +3047,23 @@
       saveSession();
     });
 
-    // Progress & volume bars
     setupProgressBar();
     setupVolumeBar();
 
-    // Drag & drop local audio files
     setupFileDrop();
 
-    // Downloads folder changed outside the app (file deleted manually).
     window.api.onLibraryChanged(() => refreshLibrary());
 
-    // Safety net: re-check on window focus in case a deletion happened while
-    // the app was in the background and the folder watcher missed it.
     window.addEventListener('focus', async () => {
       const count = (await window.api.getSongs()).length;
       if (count !== state.songs.length) refreshLibrary();
     });
 
-    // Click empty space in the song list to clear the multi-selection
     dom.songList.addEventListener('click', (e) => {
       if (!e.target.closest('.song-item')) clearSongSelection();
     });
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      // Don't trigger shortcuts when typing in inputs
       if (e.target.tagName === 'INPUT') return;
 
       switch (e.code) {
@@ -3266,7 +3128,6 @@
       }
     });
 
-    // Paste URL shortcut - if nothing focused, paste into URL input
     document.addEventListener('paste', (e) => {
       if (document.activeElement.tagName !== 'INPUT') {
         const text = e.clipboardData.getData('text');

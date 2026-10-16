@@ -1,12 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-  // Window controls
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
 
-  // Dependencies
   checkDependencies: () => ipcRenderer.invoke('check-dependencies'),
   getYtdlpStatus: () => ipcRenderer.invoke('get-ytdlp-status'),
   updateYtdlp: () => ipcRenderer.invoke('update-ytdlp'),
@@ -14,7 +12,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('ytdlp-status', (event, status) => callback(status));
   },
 
-  // App updates
   getAppUpdateStatus: () => ipcRenderer.invoke('get-app-update-status'),
   checkAppUpdate: () => ipcRenderer.invoke('check-app-update'),
   installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
@@ -22,7 +19,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('app-update-status', (event, status) => callback(status));
   },
 
-  // Downloads
   downloadVideo: (url) => ipcRenderer.invoke('download-video', url),
   downloadPlaylistUrl: (url) => ipcRenderer.invoke('download-playlist-url', url),
   onDownloadProgress: (callback) => {
@@ -33,7 +29,6 @@ contextBridge.exposeInMainWorld('api', {
   importFiles: (filePaths) => ipcRenderer.invoke('import-local-files', filePaths),
   exportPlaylist: (playlistId) => ipcRenderer.invoke('export-playlist', { playlistId }),
 
-  // Songs
   getSongs: () => ipcRenderer.invoke('get-songs'),
   updateSong: (songId, updates) => ipcRenderer.invoke('update-song', { songId, updates }),
   fetchCoverArt: (songId) => ipcRenderer.invoke('fetch-cover-art', { songId }),
@@ -43,7 +38,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('library-changed', (event, data) => callback(data));
   },
 
-  // Playlists
   getPlaylists: () => ipcRenderer.invoke('get-playlists'),
   createPlaylist: (name) => ipcRenderer.invoke('create-playlist', name),
   renamePlaylist: (playlistId, name) => ipcRenderer.invoke('rename-playlist', { playlistId, name }),
@@ -54,16 +48,14 @@ contextBridge.exposeInMainWorld('api', {
   removeFromPlaylist: (playlistId, songId) => ipcRenderer.invoke('remove-from-playlist', { playlistId, songId }),
   reorderPlaylist: (playlistId, songIds) => ipcRenderer.invoke('reorder-playlist', { playlistId, songIds }),
 
-  // Session
   getSession: () => ipcRenderer.invoke('get-session'),
   saveSession: (session) => ipcRenderer.invoke('save-session', session),
 
-  // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
-  // Mini player
   sendMiniPlayerState: (data) => ipcRenderer.send('mini-player-state', data),
+  previewMiniPlayer: (show) => ipcRenderer.send('mini-player-preview', show),
   onMiniPlayerCommand: (callback) => {
     ipcRenderer.on('mini-player-command', (event, command) => callback(command));
   },
@@ -71,7 +63,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('request-player-state', () => callback());
   },
 
-  // Keyboard shortcuts from main process
   onShortcutPrev: (callback) => {
     ipcRenderer.on('shortcut-prev', () => callback());
   },

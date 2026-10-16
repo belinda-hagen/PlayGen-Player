@@ -46,8 +46,6 @@ function normalizePlaylists() {
 
 normalizePlaylists();
 
-// Drop songs whose file was deleted outside the app, along with their
-// playlist entries and covers. Returns the removed songs.
 function pruneMissingSongs() {
   const removed = [];
   db.songs = (db.songs || []).filter(s => {
@@ -62,7 +60,7 @@ function pruneMissingSongs() {
       p.songs = (p.songs || []).filter(id => !removedIds.has(id));
     });
     removed.forEach(s => {
-      if (s.coverPath) { try { fs.unlinkSync(s.coverPath); } catch { /* ignore */ } }
+      if (s.coverPath) { try { fs.unlinkSync(s.coverPath); } catch {} }
     });
     saveDB(db);
   }
@@ -83,32 +81,28 @@ function getBundledBinPath(name) {
 }
 
 function findExecutable(name) {
-  // 1. Check bundled binaries first
   const executableName = process.platform === 'win32' ? `${name}.exe` : name;
   const bundledPath = getBundledBinPath(executableName);
   if (fs.existsSync(bundledPath)) {
     return bundledPath;
   }
 
-  // 2. Check system PATH
   const pathLookupCommand = process.platform === 'win32' ? 'where' : 'which';
   const lookup = spawnSync(pathLookupCommand, [name], { stdio: 'ignore', windowsHide: true });
   if (lookup.status === 0) {
-    return name; // available on PATH
+    return name;
   }
 
   if (process.platform !== 'win32') {
     return null;
   }
 
-  // 3. Search common winget install locations
   const wingetPkgs = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Packages');
   if (fs.existsSync(wingetPkgs)) {
     const found = findFileRecursive(wingetPkgs, `${name}.exe`, 3);
     if (found) return found;
   }
 
-  // 4. Check common manual install paths
   const commonPaths = [
     path.join(process.env.USERPROFILE || '', name + '.exe'),
     path.join(process.env.USERPROFILE || '', 'Downloads', name + '.exe'),
@@ -138,7 +132,7 @@ function findFileRecursive(dir, filename, maxDepth, depth = 0) {
         if (result) return result;
       }
     }
-  } catch { /* permission errors etc */ }
+  } catch {}
   return null;
 }
 
@@ -230,7 +224,6 @@ async function prepareManagedYtdlp() {
   let version = fs.existsSync(managedYtdlpPath) ? await getYtdlpVersion(managedYtdlpPath) : null;
   if (!version || db.ytdlp?.bundledStamp !== stamp) {
     const bundledVersion = await getYtdlpVersion(bundledYtdlpPath);
-    // Versions are dates (2026.08.19[.N]), so string order is release order.
     if (!version || (bundledVersion && bundledVersion > version)) {
       fs.mkdirSync(path.dirname(managedYtdlpPath), { recursive: true });
       fs.copyFileSync(bundledYtdlpPath, managedYtdlpPath);
@@ -241,7 +234,6 @@ async function prepareManagedYtdlp() {
   return version;
 }
 
-// Runs at startup (at most once a day) and from Settings (force).
 function updateYtdlp({ force = false } = {}) {
   if (!canManageYtdlp) return Promise.resolve(getYtdlpStatus());
   if (ytdlpUpdate) return ytdlpUpdate;
@@ -262,7 +254,6 @@ function updateYtdlp({ force = false } = {}) {
       const result = await runYtdlp(managedYtdlpPath, ['-U'], 5 * 60 * 1000);
       const version = await getYtdlpVersion(managedYtdlpPath);
       if (!version) {
-        // The update left a broken exe behind; start over from the bundled copy.
         fs.copyFileSync(bundledYtdlpPath, managedYtdlpPath);
         saveYtdlpInfo({ version: await getYtdlpVersion(managedYtdlpPath) });
         throw new Error('Update failed, restored the bundled version');
@@ -315,7 +306,7 @@ function logUpdater(level, message) {
   try {
     if (fs.existsSync(updaterLogPath) && fs.statSync(updaterLogPath).size > 512 * 1024) fs.unlinkSync(updaterLogPath);
     fs.appendFileSync(updaterLogPath, `${new Date().toISOString()} [${level}] ${message}\n`);
-  } catch { /* ignore */ }
+  } catch {}
 }
 
 function setupAppUpdater() {
@@ -343,7 +334,6 @@ function setupAppUpdater() {
   });
   autoUpdater.on('error', err => {
     logUpdater('error', err.stack || err.message);
-    // A finished download stays installable even if a later check fails.
     if (appUpdate.state !== 'ready') setAppUpdate({ state: 'error', error: 'Could not check for updates' });
   });
 
@@ -353,7 +343,7 @@ function setupAppUpdater() {
 
 function checkForAppUpdate() {
   if (!canUpdateApp || ['checking', 'downloading', 'ready'].includes(appUpdate.state)) return;
-  autoUpdater.checkForUpdates().catch(() => { /* reported by the 'error' event */ });
+  autoUpdater.checkForUpdates().catch(() => {});
 }
 
 // ── Window ─────────────────────────────────────────────────────────
@@ -380,7 +370,6 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
 
-  // Handle Ctrl+Arrow shortcuts at main process level (before Chromium's word navigation)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.control && !input.alt && !input.meta && input.type === 'keyDown') {
       if (input.key === 'ArrowLeft') {
@@ -393,12 +382,14 @@ function createWindow() {
     }
   });
 
-  // Mini-player on minimize
   mainWindow.on('minimize', () => {
     const settings = db.settings || { miniPlayerOnMinimize: true };
     console.log('[PlayGen] Window minimized, miniPlayerOnMinimize:', settings.miniPlayerOnMinimize);
+    miniPlayerPreview = false;
     if (settings.miniPlayerOnMinimize !== false) {
       createMiniPlayer();
+    } else {
+      destroyMiniPlayer();
     }
   });
 
@@ -413,7 +404,6 @@ function createWindow() {
 }
 
 // ── Mini Player ───────────────────────────────────────────────────
-// Window size for each mini player style (see src/mini-player.html).
 const MINI_PLAYER_SIZES = {
   classic: { width: 320, height: 84 },
   compact: { width: 260, height: 52 },
@@ -421,7 +411,6 @@ const MINI_PLAYER_SIZES = {
   glass: { width: 380, height: 104 }
 };
 
-// User-chosen size; the page scales its content to match (see src/mini-player.html).
 const MINI_PLAYER_SCALES = { small: 0.85, medium: 1, large: 1.25, xlarge: 1.5 };
 
 function getMiniPlayerScale() {
@@ -446,7 +435,12 @@ function getMiniPlayerBounds(style, origin = db.settings?.miniPlayerPosition) {
   return { ...size, x: Math.round(x), y: Math.round(y) };
 }
 
-function createMiniPlayer() {
+// True while the mini player is only open to preview style and size changes
+// from Settings. It closes again with Settings.
+let miniPlayerPreview = false;
+
+// `inactive` shows the window without taking focus from the main window.
+function createMiniPlayer({ inactive = false } = {}) {
   if (miniPlayerWindow) return;
   console.log('[PlayGen] Creating mini player...');
 
@@ -454,6 +448,7 @@ function createMiniPlayer() {
 
   miniPlayerWindow = new BrowserWindow({
     ...getMiniPlayerBounds(style),
+    show: !inactive,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -471,9 +466,11 @@ function createMiniPlayer() {
 
   miniPlayerWindow.loadFile(path.join(__dirname, 'src', 'mini-player.html'), { query: { style, scale: String(getMiniPlayerScale()) } });
   miniPlayerWindow.setMenuBarVisibility(false);
+  if (inactive) miniPlayerWindow.once('ready-to-show', () => miniPlayerWindow?.showInactive());
 
   miniPlayerWindow.on('closed', () => {
     miniPlayerWindow = null;
+    miniPlayerPreview = false;
   });
 
   miniPlayerWindow.webContents.on('did-finish-load', () => {
@@ -486,11 +483,10 @@ function destroyMiniPlayer() {
     miniPlayerWindow.close();
   }
   miniPlayerWindow = null;
+  miniPlayerPreview = false;
 }
 
 // ── Watch downloads folder for external changes ───────────────────
-// If a file is deleted straight from the folder, prune it and tell the
-// renderer to refresh so it disappears from the library/playlists.
 let downloadsWatcher = null;
 let watchDebounceTimer = null;
 
@@ -562,19 +558,17 @@ ipcMain.handle('get-downloads-path', () => downloadsPath);
 
 // ── IPC: Download ─────────────────────────────────────────────────
 ipcMain.handle('download-video', async (event, url) => {
-  // Validate URL — accept standard youtube links and music.youtube
   const ytRegex = /^(https?:\/\/)?(www\.|music\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[\w-]+/;
   if (!ytRegex.test(url)) {
     return { success: false, error: 'Invalid YouTube URL' };
   }
 
-  // Clean URL — strip tracking params, keep only the core URL
   try {
     const u = new URL(url.startsWith('http') ? url : 'https://' + url);
     if (u.hostname.includes('youtube.com') && u.searchParams.has('v')) {
       url = `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
     }
-  } catch { /* keep original */ }
+  } catch {}
 
   await waitForYtdlpUpdate();
   console.log('[PlayGen] Download requested:', url);
@@ -582,7 +576,6 @@ ipcMain.handle('download-video', async (event, url) => {
   console.log('[PlayGen] ffmpeg path:', ffmpegPath);
 
   return new Promise((resolve) => {
-    // Step 1: Get metadata
     const infoArgs = ['--dump-json', '--no-download', '--no-playlist', url];
     console.log('[PlayGen] Getting info:', ytdlpPath, infoArgs.join(' '));
     const infoProc = spawnYtdlp(infoArgs);
@@ -624,7 +617,6 @@ ipcMain.handle('download-video', async (event, url) => {
 
       const outputPath = path.join(downloadsPath, `${videoId}.%(ext)s`);
 
-      // Step 2: Download audio
       const ffmpegLocation = ffmpegPath !== 'ffmpeg' ? path.dirname(ffmpegPath) : null;
       const dlArgs = [
         '-x',
@@ -644,7 +636,6 @@ ipcMain.handle('download-video', async (event, url) => {
 
       let dlError = '';
 
-      // yt-dlp outputs progress to BOTH stdout and stderr
       function handleOutput(data) {
         const str = data.toString();
         const match = str.match(/(\d+\.?\d*)%/);
@@ -689,7 +680,6 @@ ipcMain.handle('download-video', async (event, url) => {
           dateAdded: new Date().toISOString()
         };
 
-        // Remove existing entry if re-downloading
         db.songs = db.songs.filter(s => s.id !== videoId);
         db.songs.unshift(song);
         saveDB(db);
@@ -720,7 +710,6 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
   console.log('[PlayGen] Playlist download requested:', url);
 
   return new Promise((resolve) => {
-    // Step 1: Get playlist entries via --flat-playlist
     const infoArgs = ['--flat-playlist', '--dump-json', url];
     const infoProc = spawnYtdlp(infoArgs);
     let infoData = '';
@@ -738,7 +727,6 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
         return resolve({ success: false, error: infoError || 'Failed to get playlist info' });
       }
 
-      // Each line is a JSON object for one video
       const entries = infoData.trim().split('\n').map(line => {
         try { return JSON.parse(line); } catch { return null; }
       }).filter(Boolean);
@@ -758,7 +746,6 @@ ipcMain.handle('download-playlist-url', async (event, url) => {
 
       console.log(`[PlayGen] Found ${videoUrls.length} videos in playlist "${playlistTitle}"`);
 
-      // Send playlist info back so renderer can download one by one
       resolve({
         success: true,
         playlistTitle,
@@ -799,11 +786,10 @@ async function probeMetadata(filePath) {
   };
 }
 
-// Guess "Artist - Title" from the file name of an untagged file.
 function parseTitleArtistFromName(baseName) {
   let name = String(baseName || '').replace(/_/g, ' ').trim();
-  name = name.replace(/^\s*\d{1,3}\s*[-.\s]\s*/, ''); // strip leading track number
-  const m = name.match(/^(.*?)\s[-–—]\s(.*)$/);       // split on first separator
+  name = name.replace(/^\s*\d{1,3}\s*[-.\s]\s*/, '');
+  const m = name.match(/^(.*?)\s[-–—]\s(.*)$/);
   if (m) {
     const artist = m[1].trim();
     const title = m[2].trim();
@@ -812,11 +798,10 @@ function parseTitleArtistFromName(baseName) {
   return { artist: null, title: name || baseName };
 }
 
-// Extract embedded cover art (if any) to a jpg. Returns true on success.
 async function extractCover(filePath, coverPath) {
   const { code } = await runFfmpeg(['-i', filePath, '-an', '-frames:v', '1', '-y', coverPath]);
   if (code === 0 && fs.existsSync(coverPath) && fs.statSync(coverPath).size > 0) return true;
-  try { if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath); } catch { /* ignore */ }
+  try { if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath); } catch {}
   return false;
 }
 
@@ -838,7 +823,6 @@ ipcMain.handle('import-local-files', async (event, filePaths) => {
       const stat = fs.statSync(srcPath);
       const baseName = path.basename(srcPath, ext);
 
-      // Dedup identical re-drops by original name + byte size.
       const importKey = `${path.basename(srcPath)}:${stat.size}`;
       if (db.songs.some(s => s.importKey === importKey)) { failed.push({ srcPath, error: 'Already imported' }); continue; }
 
@@ -850,8 +834,6 @@ ipcMain.handle('import-local-files', async (event, filePaths) => {
       const coverPath = path.join(downloadsPath, `${id}.jpg`);
       const hasCover = await extractCover(destPath, coverPath);
 
-      // Prefer embedded tags; fall back to "Artist - Title" parsed from the
-      // file name; finally fall back to the raw name / a placeholder artist.
       const guessed = parseTitleArtistFromName(baseName);
 
       const song = {
@@ -881,7 +863,6 @@ ipcMain.handle('import-local-files', async (event, filePaths) => {
 
 // ── IPC: Songs ────────────────────────────────────────────────────
 ipcMain.handle('get-songs', () => {
-  // Verify files still exist (also cleans playlists + orphan covers)
   pruneMissingSongs();
   return db.songs;
 });
@@ -889,8 +870,8 @@ ipcMain.handle('get-songs', () => {
 ipcMain.handle('delete-song', (event, songId) => {
   const song = db.songs.find(s => s.id === songId);
   if (song) {
-    try { fs.unlinkSync(song.filePath); } catch (e) { /* ignore */ }
-    if (song.coverPath) { try { fs.unlinkSync(song.coverPath); } catch (e) { /* ignore */ } }
+    try { fs.unlinkSync(song.filePath); } catch {}
+    if (song.coverPath) { try { fs.unlinkSync(song.coverPath); } catch {} }
     db.songs = db.songs.filter(s => s.id !== songId);
     db.playlists.forEach(p => {
       p.songs = p.songs.filter(id => id !== songId);
@@ -909,7 +890,7 @@ ipcMain.handle('update-song', (event, payload = {}) => {
 
   if (Object.prototype.hasOwnProperty.call(updates, 'title')) {
     const title = String(updates.title).trim();
-    if (title) song.title = title; // never allow an empty title
+    if (title) song.title = title;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'channel')) {
     song.channel = String(updates.channel).trim();
@@ -939,7 +920,6 @@ ipcMain.handle('fetch-cover-art', async (event, payload = {}) => {
     const hit = (data.results || []).find(r => r.artworkUrl100);
     if (!hit) return { success: false, error: 'No matching cover found' };
 
-    // iTMS serves a small 100x100 thumb; bump the size segment up for a crisp cover.
     const artworkUrl = hit.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.');
     const imgRes = await fetch(artworkUrl);
     if (!imgRes.ok) return { success: false, error: 'Failed to download cover' };
@@ -947,11 +927,10 @@ ipcMain.handle('fetch-cover-art', async (event, payload = {}) => {
     const buf = Buffer.from(await imgRes.arrayBuffer());
     if (!buf.length) return { success: false, error: 'Empty cover image' };
 
-    // Write to a new filename so the renderer's file:// URL changes and reloads.
     const newCoverPath = path.join(downloadsPath, `${song.id}-cov${Date.now().toString(36)}.jpg`);
     fs.writeFileSync(newCoverPath, buf);
     if (song.coverPath && song.coverPath !== newCoverPath) {
-      try { fs.unlinkSync(song.coverPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(song.coverPath); } catch {}
     }
 
     song.coverPath = newCoverPath;
@@ -1021,8 +1000,6 @@ ipcMain.handle('update-playlist', (event, payload = {}) => {
       pl.nextSongDelaySeconds = Math.max(0, Number(updates.nextSongDelaySeconds) || 0);
     }
 
-    // Pin a song's artwork as the cover (replaces any uploaded image), or
-    // pass null to go back to the automatic first-song cover.
     if (Object.prototype.hasOwnProperty.call(updates, 'coverSongId')) {
       removePlaylistCoverFile(pl);
       if (updates.coverSongId) pl.coverSongId = String(updates.coverSongId);
@@ -1035,7 +1012,7 @@ ipcMain.handle('update-playlist', (event, payload = {}) => {
 });
 
 function removePlaylistCoverFile(pl) {
-  if (pl.coverPath) { try { fs.unlinkSync(pl.coverPath); } catch { /* ignore */ } }
+  if (pl.coverPath) { try { fs.unlinkSync(pl.coverPath); } catch {} }
   delete pl.coverPath;
   delete pl.cover;
 }
@@ -1056,7 +1033,6 @@ ipcMain.handle('choose-playlist-cover', async (event, { playlistId } = {}) => {
   try {
     const src = result.filePaths[0];
     const ext = path.extname(src).toLowerCase() || '.jpg';
-    // Fresh filename each time so the renderer's image URL changes and reloads.
     const dest = path.join(coversPath, `${pl.id}-${Date.now().toString(36)}${ext}`);
     fs.copyFileSync(src, dest);
     removePlaylistCoverFile(pl);
@@ -1169,17 +1145,17 @@ ipcMain.handle('get-settings', () => {
 ipcMain.handle('save-settings', (event, settings) => {
   db.settings = { ...(db.settings || {}), ...settings };
   saveDB(db);
-  // Resize an open mini player so a style or size change takes effect right away.
   if ((settings.miniPlayerStyle || settings.miniPlayerSize) && miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
-    const { x, y } = miniPlayerWindow.getBounds();
-    miniPlayerWindow.setBounds(getMiniPlayerBounds(db.settings.miniPlayerStyle || 'classic', { x, y }));
+    const old = miniPlayerWindow.getBounds();
+    const style = db.settings.miniPlayerStyle || 'classic';
+    const { width, height } = getMiniPlayerBounds(style);
+    miniPlayerWindow.setBounds(getMiniPlayerBounds(style, { x: old.x + old.width - width, y: old.y + old.height - height }));
     miniPlayerWindow.webContents.send('mini-player-update', { scale: getMiniPlayerScale() });
   }
   return { success: true };
 });
 
 // ── IPC: Mini Player Communication ────────────────────────────────
-// Renderer sends player state updates → forward to mini player
 ipcMain.on('mini-player-state', (event, data) => {
   if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
     miniPlayerWindow.webContents.send('mini-player-update', data);
@@ -1201,14 +1177,25 @@ ipcMain.on('mini-player-drag', (event, phase, dx, dy) => {
       y: Math.round(miniDragStart.y + dy)
     });
   } else if (phase === 'end' && miniDragStart) {
+    const start = miniDragStart;
     miniDragStart = null;
     const { x, y } = miniPlayerWindow.getBounds();
+    if (x === start.x && y === start.y) return;
     db.settings = { ...(db.settings || {}), miniPlayerPosition: { x, y } };
     saveDB(db);
   }
 });
 
-// Mini player sends commands → forward to main renderer
+ipcMain.on('mini-player-preview', (event, show) => {
+  if (show) {
+    if (miniPlayerWindow) return;
+    createMiniPlayer({ inactive: true });
+    miniPlayerPreview = true;
+  } else if (miniPlayerPreview) {
+    destroyMiniPlayer();
+  }
+});
+
 ipcMain.on('mini-player-command', (event, command) => {
   if (command === 'restore') {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1219,7 +1206,6 @@ ipcMain.on('mini-player-command', (event, command) => {
   } else if (command === 'close') {
     destroyMiniPlayer();
   } else {
-    // Forward toggle-play, next, prev to the main renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('mini-player-command', command);
     }
